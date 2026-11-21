@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # Generates the Xcode project and builds Shellter.app into build/.
+#   ./scripts/build.sh           Debug build
+#   ./scripts/build.sh release   Release build, also writes build/Shellter.zip for a GitHub release
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+MODE="${1:-}"
 CONFIG="${CONFIG:-Debug}"
+[[ "$MODE" == release ]] && CONFIG=Release
 
 if [[ ! -d "$ROOT/vendor/GhosttyKit.xcframework" ]]; then
   "$ROOT/scripts/build-ghostty.sh"
@@ -38,4 +42,14 @@ xcodebuild \
   build ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"}
 
 APP="build/DerivedData/Build/Products/$CONFIG/Shellter.app"
+
+if [[ "$MODE" == release ]]; then
+  # GhosttyKit is built for the build machine only; releases are for Apple silicon.
+  [[ "$(lipo -archs "$APP/Contents/MacOS/Shellter")" == *arm64* ]] || { echo "The release must be arm64" >&2; exit 1; }
+  codesign --verify --deep --strict "$APP"
+  rm -f build/Shellter.zip
+  ditto -c -k --keepParent "$APP" build/Shellter.zip
+  echo "Wrote build/Shellter.zip" >&2
+fi
+
 echo "$ROOT/$APP"

@@ -1,0 +1,59 @@
+# After each push to main, release-please keeps a release pull request up to date:
+# the next version (fix: patch, feat: minor) and the changelog. Merging it creates
+# the tag and the GitHub release, and the build job attaches Shellter.zip.
+# To build the zip for an existing release again, run the workflow by hand with its tag.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag of the release to build Shellter.zip for (for example v0.2.0)
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  build:
+    needs: release-please
+    if: ${{ always() && (needs.release-please.outputs.release_created || github.event_name == 'workflow_dispatch') }}
+    runs-on: macos-26
+    env:
+      TAG: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          submodules: true
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.1
+      - name: Install XcodeGen and the Metal toolchain
+        run: |
+          brew install xcodegen
+          xcodebuild -downloadComponent MetalToolchain
+      - name: Build Shellter.zip
+        run: ./scripts/build.sh release
+      - name: Run the logic tests
+        run: ./scripts/test.sh
+      - name: Attach it to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" build/Shellter.zip --clobber

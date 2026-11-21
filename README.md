@@ -14,6 +14,20 @@ A macOS terminal with vertical tabs, grouped by project. Built on libghostty.
   the tab attaches and zmx restores screen and scrollback. Closing a tab ends
   its session. (A reboot ends all sessions; the tabs then start new shells.)
 
+## Install
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/fgnass/shellter/main/install.sh | sh
+```
+
+Installs the latest release into `~/Applications` (Apple silicon). Run it again to
+update; the shells in the tabs keep running during the update.
+
+Releases: release-please keeps a release pull request up to date from the commit
+messages (`fix:` patch, `feat:` minor). Merging it tags the release, and the
+workflow attaches `Shellter.zip`. `./scripts/build.sh release` builds the same zip
+locally.
+
 ## Build
 
 Requirements: Xcode, Zig 0.17+ (`brew install zig`), XcodeGen, and the Metal
