@@ -37,6 +37,7 @@ targets:
         type: file
         buildPhase: resources
       - path: vendor/bin/zmx
+        attributes: [CodeSignOnCopy]
         buildPhase:
           copyFiles:
             destination: executables

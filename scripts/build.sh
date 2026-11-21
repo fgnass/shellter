@@ -17,6 +17,16 @@ if [[ ! -d "$ROOT/Resources/Fonts" ]]; then
   "$ROOT/scripts/fetch-fonts.sh"
 fi
 
+# Sign with an "Apple Development" certificate when there is one. Then macOS knows
+# each new build as the same app and keeps its privacy permissions. An ad-hoc
+# signature changes with every build, so macOS asks for the permissions again.
+SIGN_ARGS=()
+CERT="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Apple Development: .*\)"/\1/p' | head -1)"
+if [[ -n "$CERT" ]]; then
+  TEAM="$(security find-certificate -c "$CERT" -p | openssl x509 -noout -subject | sed -n 's/.*OU=\([A-Z0-9]*\).*/\1/p')"
+  SIGN_ARGS=(CODE_SIGN_IDENTITY="$CERT" DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Manual)
+fi
+
 cd "$ROOT"
 xcodegen generate --quiet
 xcodebuild \
@@ -25,7 +35,7 @@ xcodebuild \
   -configuration "$CONFIG" \
   -derivedDataPath build/DerivedData \
   -quiet \
-  build
+  build ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"}
 
 APP="build/DerivedData/Build/Products/$CONFIG/Shellter.app"
 echo "$ROOT/$APP"
