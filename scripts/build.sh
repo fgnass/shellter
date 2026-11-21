@@ -9,6 +9,10 @@ if [[ ! -d "$ROOT/vendor/GhosttyKit.xcframework" ]]; then
   "$ROOT/scripts/build-ghostty.sh"
 fi
 
+if [[ ! -d "$ROOT/Resources/Fonts" ]]; then
+  "$ROOT/scripts/fetch-fonts.sh"
+fi
+
 cd "$ROOT"
 xcodegen generate --quiet
 xcodebuild \

@@ -4,6 +4,11 @@
 
 import AppKit
 import GhosttyKit
+import UniformTypeIdentifiers
+
+extension Notification.Name {
+    static let ghosttyConfigDidChange = Notification.Name("ShellterGhosttyConfigDidChange")
+}
 
 /// Events from libghostty that the rest of the app cares about.
 enum TerminalEvent {
@@ -39,27 +44,10 @@ final class GhosttyApp {
             return
         }
 
-        guard let cfg = ghostty_config_new() else {
+        FontLibrary.registerBundledFonts()
+        guard let cfg = Self.makeConfig() else {
             NSLog("Shellter: ghostty_config_new failed")
             return
-        }
-        // Order: Shellter defaults, the user's Ghostty config, Shellter overrides.
-        if let defaults = Bundle.main.path(forResource: "defaults", ofType: "config") {
-            ghostty_config_load_file(cfg, defaults)
-        }
-        ghostty_config_load_default_files(cfg)
-        let override = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/shellter/config").path
-        if FileManager.default.fileExists(atPath: override) {
-            ghostty_config_load_file(cfg, override)
-        }
-        ghostty_config_load_recursive_files(cfg)
-        ghostty_config_finalize(cfg)
-
-        let count = ghostty_config_diagnostics_count(cfg)
-        for i in 0..<count {
-            let d = ghostty_config_get_diagnostic(cfg, i)
-            NSLog("Shellter config: %@", String(cString: d.message))
         }
         config = cfg
 
@@ -91,6 +79,62 @@ final class GhosttyApp {
         )
         app = ghostty_app_new(&runtime, cfg)
         if app == nil { NSLog("Shellter: ghostty_app_new failed") }
+    }
+
+    /// Paths of the config files, in load order. Later files win.
+    static var appearanceConfigPath: String {
+        AppearanceSettings.configURL.path
+    }
+
+    private static func makeConfig() -> ghostty_config_t? {
+        guard let cfg = ghostty_config_new() else { return nil }
+        let fm = FileManager.default
+        // 1. Shellter defaults  2. the user's Ghostty config
+        // 3. choices from the Settings window  4. ~/.config/shellter/config
+        if let defaults = Bundle.main.path(forResource: "defaults", ofType: "config") {
+            ghostty_config_load_file(cfg, defaults)
+        }
+        ghostty_config_load_default_files(cfg)
+        if fm.fileExists(atPath: appearanceConfigPath) {
+            ghostty_config_load_file(cfg, appearanceConfigPath)
+        }
+        let override = fm.homeDirectoryForCurrentUser.appendingPathComponent(".config/shellter/config").path
+        if fm.fileExists(atPath: override) {
+            ghostty_config_load_file(cfg, override)
+        }
+        ghostty_config_load_recursive_files(cfg)
+        ghostty_config_finalize(cfg)
+
+        let count = ghostty_config_diagnostics_count(cfg)
+        for i in 0..<count {
+            let d = ghostty_config_get_diagnostic(cfg, i)
+            NSLog("Shellter config: %@", String(cString: d.message))
+        }
+        return cfg
+    }
+
+    /// Loads all config files again and applies them to every terminal.
+    func reloadConfig() {
+        guard let app, let cfg = Self.makeConfig() else { return }
+        ghostty_app_update_config(app, cfg)
+        if let old = config { ghostty_config_free(old) }
+        config = cfg
+        NotificationCenter.default.post(name: .ghosttyConfigDidChange, object: nil)
+    }
+
+    /// Tells libghostty whether macOS is in light or dark mode (for `theme = light:…,dark:…`).
+    func setColorScheme(dark: Bool) {
+        guard let app else { return }
+        ghostty_app_set_color_scheme(app, dark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT)
+    }
+
+    /// The terminal background color of the current config.
+    var backgroundColor: NSColor? {
+        guard let config else { return nil }
+        var c = ghostty_config_color_s()
+        let key = "background"
+        guard ghostty_config_get(config, &c, key, UInt(key.utf8.count)) else { return nil }
+        return NSColor(srgbRed: CGFloat(c.r) / 255, green: CGFloat(c.g) / 255, blue: CGFloat(c.b) / 255, alpha: 1)
     }
 
     func tick() {
@@ -357,4 +401,3 @@ extension NSPasteboard.PasteboardType {
     }
 }
 
-import UniformTypeIdentifiers

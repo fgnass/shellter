@@ -1,0 +1,324 @@
+import SwiftUI
+import UniformTypeIdentifiers
+
+final class SettingsWindowController: NSWindowController {
+    static let shared = SettingsWindowController()
+
+    private init() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            backing: .buffered, defer: false)
+        window.title = "Settings"
+        window.contentViewController = NSHostingController(rootView: SettingsView())
+        window.setContentSize(NSSize(width: 760, height: 560))
+        window.minSize = NSSize(width: 640, height: 440)
+        window.setFrameAutosaveName("ShellterSettings")
+        window.center()
+        super.init(window: window)
+    }
+
+    required init?(coder: NSCoder) { fatalError("not supported") }
+
+    func show() {
+        showWindow(nil)
+        window?.makeKeyAndOrderFront(nil)
+    }
+}
+
+struct SettingsView: View {
+    @State private var tab = UserDefaults.standard.string(forKey: "ShellterSettingsTab") ?? "font"
+
+    var body: some View {
+        TabView(selection: $tab) {
+            FontSettingsView()
+                .tabItem { Label("Font", systemImage: "textformat") }
+                .tag("font")
+            ThemeSettingsView()
+                .tabItem { Label("Theme", systemImage: "paintpalette") }
+                .tag("theme")
+        }
+        .padding(16)
+    }
+}
+
+// MARK: - Shared preview
+
+/// Sample terminal output in the selected font and theme.
+struct TerminalPreview: View {
+    let family: String
+    let size: Double
+    let theme: TerminalTheme?
+
+    private var bg: Color { theme.map { Color(nsColor: $0.background.color) } ?? Color(nsColor: GhosttyApp.shared.backgroundColor ?? .black) }
+    private var fg: Color { theme.map { Color(nsColor: $0.foreground.color) } ?? .white }
+    private func ansi(_ i: Int) -> Color {
+        guard let theme else { return Color(nsColor: ThemeLibrary.defaultPalette(dark: true)[i].color) }
+        return Color(nsColor: theme.palette[i].color)
+    }
+
+    var body: some View {
+        let font = Font(FontLibrary.previewFont(family, size: size))
+        VStack(alignment: .leading, spacing: 2) {
+            (Text("~/projects/app ").foregroundColor(ansi(4)) + Text("on ").foregroundColor(fg)
+                + Text("main ").foregroundColor(ansi(5)) + Text("❯ ").foregroundColor(ansi(2))
+                + Text("npm run dev").foregroundColor(fg))
+            (Text("  VITE ").foregroundColor(ansi(2)) + Text("ready in 312 ms").foregroundColor(fg))
+            (Text("  ➜ Local: ").foregroundColor(fg) + Text("http://localhost:5173/").foregroundColor(ansi(6)))
+            (Text("const ").foregroundColor(ansi(5)) + Text("ok").foregroundColor(fg)
+                + Text(" = a !== b && c >= d || x => y").foregroundColor(ansi(3)))
+            (Text("error ").foregroundColor(ansi(1)) + Text("warn ").foregroundColor(ansi(3))
+                + Text("info ").foregroundColor(ansi(4)) + Text("// comment").foregroundColor(ansi(8)))
+            HStack(spacing: 0) {
+                ForEach(0..<16, id: \.self) { i in
+                    Rectangle().fill(ansi(i)).frame(width: 18, height: 12)
+                }
+            }
+            .padding(.top, 4)
+        }
+        .font(font)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(bg)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+/// The theme that is active now (for previews).
+private func currentTheme(_ s: AppearanceSettings) -> TerminalTheme? {
+    let lib = ThemeLibrary.shared
+    if s.state.followEditor != nil { return lib.theme(id: s.followedThemes.dark) }
+    return lib.theme(id: s.state.darkThemeID)
+}
+
+// MARK: - Font
+
+struct FontSettingsView: View {
+    @ObservedObject private var settings = AppearanceSettings.shared
+    @State private var installed: [FontFamily] = []
+
+    private var selected: String { settings.state.fontFamily ?? FontLibrary.defaultFamily }
+    private var size: Double { settings.state.fontSize ?? 13 }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            List(selection: Binding(
+                get: { selected },
+                set: { name in
+                    guard let name else { return }
+                    settings.state.fontFamily = name == FontLibrary.defaultFamily ? nil : name
+                }
+            )) {
+                Section("Bundled") {
+                    ForEach(FontLibrary.bundledFamilies) { row($0) }
+                }
+                if !installed.isEmpty {
+                    Section("Installed") {
+                        ForEach(installed) { row($0) }
+                    }
+                }
+            }
+            .frame(width: 260)
+
+            VStack(alignment: .leading, spacing: 14) {
+                Text(FontFamily(name: selected, bundled: true, ligatures: false).displayName)
+                    .font(.title2.weight(.semibold))
+                HStack {
+                    Text("Size")
+                    Slider(value: Binding(get: { size }, set: { settings.state.fontSize = $0.rounded() }),
+                           in: 9...24, step: 1)
+                    Stepper("\(Int(size)) pt", value: Binding(
+                        get: { size }, set: { settings.state.fontSize = $0 }), in: 9...24, step: 1)
+                        .frame(width: 90)
+                }
+                Toggle("Ligatures (→ != >= =>)", isOn: Binding(
+                    get: { settings.state.ligatures }, set: { settings.state.ligatures = $0 }))
+                TerminalPreview(family: selected, size: size, theme: currentTheme(settings))
+                Text("Nerd Font icons work with every font. Shellter includes the icon glyphs.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+        }
+        .onAppear { installed = FontLibrary.installedMonospaceFamilies() }
+    }
+
+    private func row(_ f: FontFamily) -> some View {
+        HStack {
+            Text(f.displayName).font(Font(FontLibrary.previewFont(f.name, size: 13)))
+            Spacer()
+            if f.ligatures {
+                Text("ligatures").font(.caption2).foregroundStyle(.secondary)
+            }
+        }
+        .tag(f.name)
+    }
+}
+
+// MARK: - Theme
+
+struct ThemeSettingsView: View {
+    @ObservedObject private var settings = AppearanceSettings.shared
+    @State private var query = ""
+    @State private var filter: Filter = .all
+    @State private var editingLight = false
+    @State private var loaded = false
+    @State private var importError: String?
+
+    enum Filter: String, CaseIterable, Identifiable {
+        case all = "All", dark = "Dark", light = "Light"
+        var id: String { rawValue }
+    }
+
+    private var lib: ThemeLibrary { ThemeLibrary.shared }
+    private var editors: [Editor] { lib.editors }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sourcePicker
+            if let editor = settings.followedEditor {
+                followInfo(editor)
+            } else {
+                chooser
+            }
+        }
+        .onAppear {
+            lib.loadIfNeeded()
+            loaded = true
+        }
+        .alert("Import failed", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
+            Button("OK") { importError = nil }
+        } message: {
+            Text(importError ?? "")
+        }
+    }
+
+    private var sourcePicker: some View {
+        Picker("Theme source", selection: Binding(
+            get: { settings.state.followEditor ?? "" },
+            set: { settings.state.followEditor = $0.isEmpty ? nil : $0 }
+        )) {
+            Text("Choose in Shellter").tag("")
+            ForEach(editors) { e in Text("Same as \(e.name)").tag(e.name) }
+        }
+        .pickerStyle(.menu)
+        .frame(maxWidth: 360)
+    }
+
+    private func followInfo(_ editor: Editor) -> some View {
+        let dark = lib.theme(id: settings.followedThemes.dark)
+        let light = lib.theme(id: settings.followedThemes.light)
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Shellter uses the color theme of \(editor.name) and follows every change you make there.")
+                .foregroundStyle(.secondary)
+            if let dark {
+                LabeledContent(light == nil ? "Theme" : "Dark", value: dark.name)
+            } else {
+                Text("The theme of \(editor.name) was not found.").foregroundStyle(.orange)
+            }
+            if let light { LabeledContent("Light", value: light.name) }
+            TerminalPreview(family: settings.state.fontFamily ?? FontLibrary.defaultFamily,
+                            size: settings.state.fontSize ?? 13, theme: dark)
+            Spacer()
+        }
+    }
+
+    private var chooser: some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(spacing: 8) {
+                HStack {
+                    TextField("Search", text: $query).textFieldStyle(.roundedBorder)
+                    Picker("", selection: $filter) {
+                        ForEach(Filter.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .labelsHidden()
+                    .frame(width: 90)
+                }
+                List(selection: Binding(
+                    get: { editingLight ? settings.state.lightThemeID : settings.state.darkThemeID },
+                    set: { id in
+                        if editingLight { settings.state.lightThemeID = id } else { settings.state.darkThemeID = id }
+                    }
+                )) {
+                    ForEach(editors) { e in
+                        let list = filtered(lib.editorThemes[e.name] ?? [])
+                        if !list.isEmpty {
+                            Section("From \(e.name)") { ForEach(list) { ThemeRow(theme: $0).tag(Optional($0.id)) } }
+                        }
+                    }
+                    let imported = filtered(lib.imported)
+                    if !imported.isEmpty {
+                        Section("Imported") { ForEach(imported) { ThemeRow(theme: $0).tag(Optional($0.id)) } }
+                    }
+                    Section("Built-in") { ForEach(filtered(lib.builtin)) { ThemeRow(theme: $0).tag(Optional($0.id)) } }
+                }
+                HStack {
+                    Button("Import…", action: importTheme)
+                    Spacer()
+                    Text("iTerm2, VS Code or Ghostty theme files").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 320)
+
+            VStack(alignment: .leading, spacing: 14) {
+                Toggle("Different theme in Light Mode", isOn: Binding(
+                    get: { settings.state.separateLightTheme },
+                    set: { settings.state.separateLightTheme = $0; if !$0 { editingLight = false } }))
+                if settings.state.separateLightTheme {
+                    Picker("", selection: $editingLight) {
+                        Text("Dark Mode").tag(false)
+                        Text("Light Mode").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
+                let shown = lib.theme(id: editingLight ? settings.state.lightThemeID : settings.state.darkThemeID)
+                Text(shown?.name ?? "Ghostty default").font(.title2.weight(.semibold))
+                TerminalPreview(family: settings.state.fontFamily ?? FontLibrary.defaultFamily,
+                                size: settings.state.fontSize ?? 13, theme: shown)
+                Spacer()
+            }
+        }
+    }
+
+    private func filtered(_ list: [TerminalTheme]) -> [TerminalTheme] {
+        list.filter { t in
+            (filter == .all || (filter == .dark) == t.isDark) &&
+                (query.isEmpty || t.name.localizedCaseInsensitiveContains(query))
+        }
+    }
+
+    private func importTheme() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.message = "Choose a .itermcolors, VS Code theme (.json) or Ghostty theme file"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let theme = try lib.importTheme(from: url)
+            if editingLight { settings.state.lightThemeID = theme.id } else { settings.state.darkThemeID = theme.id }
+        } catch {
+            importError = "Shellter could not read colors from “\(url.lastPathComponent)”."
+        }
+    }
+}
+
+private struct ThemeRow: View {
+    let theme: TerminalTheme
+
+    var body: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 2) {
+                ForEach([1, 2, 3, 4, 5, 6], id: \.self) { i in
+                    Circle().fill(Color(nsColor: theme.palette[i].color)).frame(width: 6, height: 6)
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 5)
+            .background(Color(nsColor: theme.background.color))
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.primary.opacity(0.15)))
+            Text(theme.name).lineLimit(1)
+        }
+    }
+}

@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = GhosttyApp.shared
+        AppearanceSettings.shared.observeSystemAppearance()
+        AppearanceSettings.shared.start()
         NSApp.mainMenu = buildMenu()
 
         let wc = MainWindowController(store: store)
@@ -24,6 +26,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wc.showWindow(nil)
         wc.showSelected()
         NSApp.activate(ignoringOtherApps: true)
+        if UserDefaults.standard.bool(forKey: "ShellterShowSettings") {
+            SettingsWindowController.shared.show()
+        }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -62,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func nextNeedingInput(_ sender: Any?) { store.selectNextNeedingInput() }
     @objc func selectTabByTag(_ sender: NSMenuItem) { store.selectIndex(sender.tag) }
     @objc func toggleSidebar(_ sender: Any?) { windowController?.toggleSidebar(sender) }
+    @objc func showSettings(_ sender: Any?) { SettingsWindowController.shared.show() }
 
     // MARK: Menu
 
@@ -85,6 +91,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         submenu("Shellter", [
             item("About Shellter", #selector(NSApplication.orderFrontStandardAboutPanel(_:)), ""),
+            .separator(),
+            item("Settings…", #selector(showSettings(_:)), ",", target: self),
             .separator(),
             item("Hide Shellter", #selector(NSApplication.hide(_:)), "h"),
             item("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),

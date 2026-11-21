@@ -21,10 +21,31 @@ git submodule update --init
 ./scripts/build.sh           # builds Shellter.app, prints its path
 ```
 
+## Fonts and themes
+
+Settings (⌘,) has a font list and a theme list with a live preview.
+
+- 12 bundled font families (OFL-1.1 / MIT), registered for Shellter only:
+  JetBrains Mono, Fira Code, Cascadia Code, Iosevka, Monaspace (5 styles),
+  Geist Mono, Maple Mono, Victor Mono, Commit Mono, IBM Plex Mono,
+  Source Code Pro, Hack. `scripts/fetch-fonts.sh` downloads them.
+  Installed monospaced fonts are listed too.
+- Nerd Font icons work with every font (libghostty embeds the symbols).
+- Themes: the 450+ themes that ship with Ghostty, the themes of installed
+  editors (VS Code, Cursor, VSCodium, Windsurf), and imported files
+  (`.itermcolors`, VS Code theme `.json`, Ghostty theme files).
+- "Same as VS Code" follows the editor's `workbench.colorTheme` (and the
+  preferred light/dark themes when `window.autoDetectColorScheme` is on).
+
 ## Configuration
 
-Shellter reads your normal Ghostty config (`~/.config/ghostty/config`), then
-`~/.config/shellter/config` for Shellter-only overrides.
+Config files, in load order (later files win):
+
+1. Shellter defaults (`Resources/defaults.config`)
+2. Your Ghostty config (`~/.config/ghostty/config`)
+3. Choices from the Settings window
+   (`~/Library/Application Support/Shellter/appearance.config`)
+4. `~/.config/shellter/config` for manual overrides
 
 ## Shortcuts
 
@@ -35,6 +56,7 @@ Shellter reads your normal Ghostty config (`~/.config/ghostty/config`), then
 | ⌃Tab, ⌃⇧Tab, ⌘⌥↓, ⌘⌥↑ | Next / previous tab |
 | ⌘J | Next tab that needs input |
 | ⌃⌘S | Toggle sidebar |
+| ⌘, | Settings |
 
 ## Launch arguments (for testing)
 
