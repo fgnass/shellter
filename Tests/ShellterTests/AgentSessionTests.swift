@@ -28,4 +28,12 @@ final class AgentSessionTests: XCTestCase {
         XCTAssertEqual(AgentSession.forkCommand(.pi, session: "/s/a.jsonl"), "pi --fork /s/a.jsonl")
         XCTAssertNil(AgentSession.forkCommand(.opencode, session: "x"))
     }
+
+    func testNamedFork() {
+        XCTAssertEqual(AgentSession.forkCommand(.claude, session: "abc", name: "Branch: Mail client"),
+                       "claude --resume abc --fork-session --name 'Branch: Mail client'")
+        XCTAssertEqual(AgentSession.branchName(title: "  Eigener Mail-Client  "), "Branch: Eigener Mail-Client")
+        XCTAssertEqual(AgentSession.branchName(title: String(repeating: "x", count: 50)).count, 48)
+        XCTAssertEqual(AgentSession.branchName(title: ""), "Branch")
+    }
 }

@@ -165,7 +165,9 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
     @discardableResult
     func branch(_ s: Session) -> Bool {
         guard let agent = s.agent,
-              let command = AgentSession.forkCommand(agent, session: s.agentSession) else { return false }
+              let command = AgentSession.forkCommand(agent, session: s.agentSession,
+                                                      name: AgentSession.branchName(title: s.title))
+        else { return false }
         selectedID = s.id
         newTab(cwd: s.cwd, input: command + "\n")
         return true

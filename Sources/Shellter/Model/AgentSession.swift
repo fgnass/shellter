@@ -41,13 +41,23 @@ enum AgentSession {
     }
 
     /// Command that starts a copy of the session that goes its own way, or nil.
-    static func forkCommand(_ agent: Agent, session: String?) -> String? {
+    /// The fork starts with the whole conversation, so it looks like the original until
+    /// the first new message; `name` (where the agent supports it) tells the two apart.
+    static func forkCommand(_ agent: Agent, session: String?, name: String? = nil) -> String? {
+        let named = name.map { " --name \(Shell.quote($0))" } ?? ""
         switch agent {
-        case .claude: return session.map { "claude --resume \(Shell.quote($0)) --fork-session" }
+        case .claude: return session.map { "claude --resume \(Shell.quote($0)) --fork-session" + named }
         case .codex: return session.map { "codex fork \(Shell.quote($0))" } ?? "codex fork --last"
-        case .pi: return session.map { "pi --fork \(Shell.quote($0))" }
+        case .pi: return session.map { "pi --fork \(Shell.quote($0))" + named }
         case .opencode: return nil
         }
+    }
+
+    /// The name of a branch: "Branch: <title>", short enough for the prompt box.
+    static func branchName(title: String) -> String {
+        let t = title.trimmingCharacters(in: .whitespaces)
+        let short = t.count > 40 ? String(t.prefix(39)) + "…" : t
+        return short.isEmpty ? "Branch" : "Branch: \(short)"
     }
 
     // MARK: Helpers
