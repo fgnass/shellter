@@ -39,8 +39,8 @@ struct SidebarView: View {
                             }
                             ForEach(store.windows(of: group)) { w in
                                 HStack(spacing: 2) {
-                                    PlainLine(color: color)
-                                    windowRow(w)
+                                    WindowMarker(link: w.link, color: color)
+                                    windowRow(w, icon: false)
                                 }
                                 .padding(.leading, 6)
                             }
@@ -105,12 +105,12 @@ struct SidebarView: View {
     @ViewBuilder
     private func rows(of group: SessionGroup) -> some View {
         ForEach(group.sessions) { s in row(for: s, icon: true) }
-        ForEach(store.windows(of: group)) { w in windowRow(w) }
+        ForEach(store.windows(of: group)) { w in windowRow(w, icon: true) }
     }
 
-    private func windowRow(_ w: ProjectWindow) -> some View {
+    private func windowRow(_ w: ProjectWindow, icon: Bool) -> some View {
         SidebarRow(selected: false) {
-            WindowRow(window: w, condensed: layout.condensedTitles)
+            WindowRow(window: w, condensed: layout.condensedTitles, showIcon: icon)
         }
         .onTapGesture { LinkedWindows.show(w.link) }
         .contextMenu {
@@ -343,56 +343,68 @@ private struct TabRow: View {
 }
 
 /// A window of another app in the project: an app that a tab started (e.g. the browser
-/// of a coding agent) or a file of the project that another app shows.
+/// of a coding agent) or a file of the project that another app shows. One line, like a tab.
 private struct WindowRow: View {
     let window: ProjectWindow
     var condensed = false
-
-    private var width: Font.Width { condensed ? .condensed : .standard }
+    var showIcon = true
 
     var body: some View {
         HStack(spacing: 8) {
-            Group {
-                if let icon = window.link.icon {
-                    Image(nsImage: icon).resizable()
-                } else {
-                    Image(systemName: "macwindow")
-                }
-            }
-            .frame(width: 16, height: 16)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.system(size: 13).width(width))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Text(subtitle)
-                    .font(.system(size: 10).width(width))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
+            if showIcon { WindowIcon(link: window.link, size: 16) }
+            Text(title)
+                .font(.system(size: 13).width(condensed ? .condensed : .standard))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
             Spacer(minLength: 4)
         }
         .padding(.vertical, 2)
-        .help("Show \(window.link.label)")
+        .help(help)
     }
 
     private var title: String {
         window.link.document.map { ($0 as NSString).lastPathComponent } ?? window.link.appName
     }
 
-    /// Files: the app. Apps: the tab that started them.
-    private var subtitle: String {
-        window.link.document == nil ? window.session.title : window.link.appName
+    private var help: String {
+        window.link.document.map { "\($0) in \(window.link.appName)" }
+            ?? "\(window.link.appName), started by \(window.session.title)"
     }
 }
 
-/// In the lines layout, the project line runs past the window rows without a marker.
-private struct PlainLine: View {
+struct WindowIcon: View {
+    let link: LinkedWindow
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let icon = link.icon {
+                Image(nsImage: icon).resizable().interpolation(.high)
+            } else {
+                Image(systemName: "macwindow").resizable().scaledToFit()
+            }
+        }
+        .frame(width: size, height: size)
+    }
+}
+
+/// In the lines layout, a window sits on the project line with its app icon.
+private struct WindowMarker: View {
+    let link: LinkedWindow
     let color: Color
 
     var body: some View {
-        Rectangle().fill(color).frame(width: 2).frame(maxHeight: .infinity).frame(width: 20)
+        VStack(spacing: 0) {
+            segment
+            WindowIcon(link: link, size: 16).padding(.vertical, 2)
+            segment
+        }
+        .frame(width: 20)
+    }
+
+    private var segment: some View {
+        Rectangle().fill(color).frame(width: 2).frame(maxHeight: .infinity)
     }
 }
 
