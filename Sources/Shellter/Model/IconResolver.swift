@@ -88,6 +88,10 @@ final class IconResolver {
                         if let png = largestPNG(in: item) { consider(png, score: 90) }
                         continue
                     }
+                    if name.hasSuffix(".icon") {
+                        consider(item, score: 92)   // Icon Composer document
+                        continue
+                    }
                     if !skipDirs.contains(name) && !name.hasSuffix(".app") { walk(item, depth: depth + 1) }
                     continue
                 }
@@ -117,6 +121,7 @@ final class IconResolver {
     }
 
     private static func loadImage(_ url: URL) -> NSImage? {
+        if url.pathExtension == "icon" { return IconComposerRenderer.render(url) }
         guard let img = NSImage(contentsOf: url), img.isValid, img.size.width > 0 else { return nil }
         return img
     }
@@ -211,5 +216,57 @@ final class IconResolver {
         var hash: UInt64 = 5381
         for b in key.utf8 { hash = (hash &* 33) &+ UInt64(b) }
         return NSColor(hue: CGFloat(hash % 360) / 360, saturation: 0.55, brightness: 0.75, alpha: 1)
+    }
+}
+
+/// Draws an Icon Composer document (`.icon` folder): the fill from `icon.json`, then the
+/// layer images of each group, bottom to top, in the rounded macOS icon shape. Glass
+/// effects are left out; at sidebar size they do not show.
+enum IconComposerRenderer {
+    static func render(_ url: URL, size: CGFloat = 128) -> NSImage? {
+        guard let data = try? Data(contentsOf: url.appendingPathComponent("icon.json")),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        let assets = url.appendingPathComponent("Assets")
+        let groups = json["groups"] as? [[String: Any]] ?? []
+        // In icon.json the first group and the first layer are on top.
+        let layers: [NSImage] = groups.reversed().flatMap { group -> [NSImage] in
+            let list = (group["layers"] as? [[String: Any]] ?? []).reversed()
+            return list.compactMap { layer in
+                if layer["hidden"] as? Bool == true { return nil }
+                guard let name = layer["image-name"] as? String else { return nil }
+                return NSImage(contentsOf: assets.appendingPathComponent(name))
+            }
+        }
+        guard !layers.isEmpty else { return nil }
+
+        let fill = json["fill"] as? [String: Any]
+        return NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
+            NSBezierPath(roundedRect: rect, xRadius: size * 0.225, yRadius: size * 0.225).addClip()
+            if let stops = fill?["linear-gradient"] as? [String],
+               let gradient = NSGradient(colors: stops.compactMap(color)) {
+                gradient.draw(in: rect, angle: -90)
+            } else if let solid = (fill?["solid"] as? String).flatMap(color) {
+                solid.setFill()
+                rect.fill()
+            } else {
+                NSColor.white.setFill()
+                rect.fill()
+            }
+            for layer in layers { layer.draw(in: rect) }
+            return true
+        }
+    }
+
+    /// Parses "srgb:0.1,0.2,0.3,1.0" (also display-p3, extended-srgb, extended-gray).
+    private static func color(_ s: String) -> NSColor? {
+        let parts = s.split(separator: ":", maxSplits: 1)
+        guard parts.count == 2 else { return nil }
+        let v = parts[1].split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+        switch (parts[0], v.count) {
+        case ("display-p3", 4): return NSColor(displayP3Red: v[0], green: v[1], blue: v[2], alpha: v[3])
+        case (_, 4): return NSColor(srgbRed: v[0], green: v[1], blue: v[2], alpha: v[3])
+        case (_, 2): return NSColor(white: v[0], alpha: v[1])
+        default: return nil
+        }
     }
 }
