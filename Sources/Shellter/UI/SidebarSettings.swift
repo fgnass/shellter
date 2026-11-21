@@ -33,7 +33,7 @@ enum ProjectColor {
 
     /// `dark`: the sidebar is dark, so the color must be light enough, and the other way round.
     static func of(image: NSImage?, key: String, dark: Bool) -> NSColor {
-        legible(base(image: image, key: key), onDark: dark)
+        legible(ProjectColors.shared.color(for: key) ?? base(image: image, key: key), onDark: dark)
     }
 
     private static func base(image: NSImage?, key: String) -> NSColor {

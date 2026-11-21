@@ -43,3 +43,18 @@ final class IconComposerRendererTests: XCTestCase {
         XCTAssertEqual(image?.size.width, 128)
     }
 }
+
+final class ProjectColorsTests: XCTestCase {
+    func testHexRoundTrip() {
+        let c = ProjectColors.color(hex: "#3E63DD")!
+        XCTAssertEqual(ProjectColors.hex(of: c), "#3E63DD")
+        XCTAssertNil(ProjectColors.color(hex: "#12345"))
+        XCTAssertNil(ProjectColors.color(hex: "nothex"))
+    }
+
+    func testPaletteColorsAreValid() {
+        for swatch in ProjectColors.palette {
+            XCTAssertEqual(ProjectColors.hex(of: swatch.color), swatch.hex, swatch.name)
+        }
+    }
+}

@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct SidebarView: View {
     @ObservedObject var store: SessionStore
     @ObservedObject private var layout = SidebarSettings.shared
+    @ObservedObject private var projectColors = ProjectColors.shared
     @Environment(\.colorScheme) private var colorScheme
     @State private var dropTargeted = false
     /// The tab or project that a dragged sidebar item is over.
@@ -117,6 +118,7 @@ struct SidebarView: View {
     /// Drag a project header onto another one to reorder the projects.
     private func header(of group: SessionGroup) -> some View {
         GroupHeader(group: group)
+            .contextMenu { colorMenu(for: group) }
             .background(
                 RoundedRectangle(cornerRadius: 7)
                     .fill(Color.accentColor.opacity(dragTarget == "group:\(group.id)" ? 0.2 : 0))
@@ -130,6 +132,32 @@ struct SidebarView: View {
             } isTargeted: { over in
                 if over { dragTarget = "group:\(group.id)" } else if dragTarget == "group:\(group.id)" { dragTarget = nil }
             }
+    }
+
+    @ViewBuilder
+    private func colorMenu(for group: SessionGroup) -> some View {
+        let current = projectColors.hex(for: group.id)
+        Menu("Project Color") {
+            Toggle("Automatic", isOn: Binding(
+                get: { current == nil },
+                set: { if $0 { projectColors.set(nil, for: group.id) } }
+            ))
+            Divider()
+            ForEach(ProjectColors.palette) { swatch in
+                Toggle(isOn: Binding(
+                    get: { current == swatch.hex },
+                    set: { if $0 { projectColors.set(swatch.color, for: group.id) } }
+                )) {
+                    Label { Text(swatch.name) } icon: { Image(nsImage: ProjectColors.swatchImage(swatch.color)) }
+                }
+            }
+            Divider()
+            Button("Custom…") { projectColors.showColorPanel(for: group.id) }
+        }
+        Button("New Tab Here") { store.newTab(cwd: group.id) }
+        Button("Reveal in Finder") {
+            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: group.id)
+        }
     }
 
     private func rename(_ s: Session) {
@@ -316,7 +344,7 @@ struct ProjectIcon: View {
                     .aspectRatio(contentMode: .fit)
             } else {
                 RoundedRectangle(cornerRadius: size * 0.25)
-                    .fill(Color(nsColor: IconResolver.color(for: key)))
+                    .fill(Color(nsColor: ProjectColors.shared.color(for: key) ?? IconResolver.color(for: key)))
                     .overlay(
                         Text(String(name.prefix(1)).uppercased())
                             .font(.system(size: size * 0.6, weight: .semibold, design: .rounded))
