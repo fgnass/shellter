@@ -1,0 +1,7 @@
+.DS_Store
+/build/
+/Shellter.xcodeproj/
+/vendor/GhosttyKit.xcframework/
+/Resources/ghostty/
+/Resources/terminfo/
+xcuserdata/

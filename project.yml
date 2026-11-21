@@ -1,0 +1,41 @@
+name: Shellter
+options:
+  bundleIdPrefix: com.fgnass
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    ENABLE_HARDENED_RUNTIME: NO
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+
+targets:
+  Shellter:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/Shellter
+      - path: Resources/ghostty
+        type: folder
+        buildPhase: resources
+      - path: Resources/terminfo
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - framework: vendor/GhosttyKit.xcframework
+        embed: false
+      - sdk: Carbon.framework
+      - sdk: Metal.framework
+      - sdk: QuartzCore.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fgnass.shellter
+        PRODUCT_NAME: Shellter
+        INFOPLIST_FILE: Sources/Shellter/Info.plist
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/Shellter/Shellter-Bridging-Header.h
+        OTHER_LDFLAGS: ["-lstdc++"]
+        ENABLE_APP_SANDBOX: NO
