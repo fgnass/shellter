@@ -4,6 +4,10 @@ import SwiftUI
 
 /// Hosts the terminal of the selected tab.
 final class TerminalContainerController: NSViewController {
+    /// The find bar of the shown terminal, at the top right.
+    private var searchHost: NSHostingView<AnyView>?
+    private var searchVisible: AnyCancellable?
+
     override func loadView() {
         let v = NSView()
         v.wantsLayer = true
@@ -14,12 +18,38 @@ final class TerminalContainerController: NSViewController {
         if terminal.superview !== view {
             terminal.frame = view.bounds
             terminal.autoresizingMask = [.width, .height]
-            view.addSubview(terminal)
+            view.addSubview(terminal, positioned: .below, relativeTo: searchHost)
         }
         for case let t as TerminalView in view.subviews {
             t.setVisible(t === terminal)
         }
-        focus(terminal)
+        showSearchBar(of: terminal)
+        if !terminal.search.visible { focus(terminal) }
+    }
+
+    private func showSearchBar(of terminal: TerminalView) {
+        searchHost?.removeFromSuperview()
+        let host = NSHostingView(rootView: AnyView(SearchBar(search: terminal.search, terminal: terminal)))
+        host.isHidden = !terminal.search.visible
+        view.addSubview(host)
+        searchHost = host
+        layoutSearchBar()
+        searchVisible = terminal.search.$visible
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] visible in
+                host.isHidden = !visible
+                self?.layoutSearchBar()
+            }
+    }
+
+    private func layoutSearchBar() {
+        guard let host = searchHost else { return }
+        let size = host.fittingSize
+        let b = view.bounds
+        host.frame = NSRect(x: b.maxX - size.width - 16, y: b.maxY - size.height - 12,
+                            width: size.width, height: size.height)
+        host.autoresizingMask = [.minXMargin, .minYMargin]
     }
 
     /// SwiftUI may take the focus after a layout pass, so focus again on the next run loop.
@@ -195,6 +225,7 @@ final class ChromeSplitView: NSSplitView {
 final class ShellterWindow: NSWindow {
     override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
         if let view = responder as? NSView, !(view is TerminalView), !(view is NSTextView),
+           !(view is NSTextField),
            isInSidebar(view),
            let terminal = terminalView(in: contentView) {
             return super.makeFirstResponder(terminal)

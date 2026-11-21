@@ -80,6 +80,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: Actions
 
     @objc func newTab(_ sender: Any?) { store.newTab() }
+    @objc func find(_ sender: Any?) { store.selected?.view?.startSearch() }
+    @objc func findNext(_ sender: Any?) { store.selected?.view?.searchNext() }
+    @objc func findPrevious(_ sender: Any?) { store.selected?.view?.searchPrevious() }
     @objc func closeTab(_ sender: Any?) { if let s = store.selected { store.close(s) } }
     @objc func nextTab(_ sender: Any?) { store.selectRelative(1) }
     @objc func previousTab(_ sender: Any?) { store.selectRelative(-1) }
@@ -129,6 +132,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item("Copy", #selector(TerminalView.copy(_:)), "c"),
             item("Paste", #selector(TerminalView.paste(_:)), "v"),
             item("Select All", #selector(NSResponder.selectAll(_:)), "a"),
+            .separator(),
+            item("Find…", #selector(find(_:)), "f", target: self),
+            item("Find Next", #selector(findNext(_:)), "g", target: self),
+            item("Find Previous", #selector(findPrevious(_:)), "g", [.command, .shift], target: self),
         ])
 
         submenu("View", [

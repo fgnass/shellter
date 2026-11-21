@@ -234,6 +234,29 @@ final class GhosttyApp {
             event = .closeTab
         case GHOSTTY_ACTION_GOTO_TAB:
             event = .gotoTab(Int(action.action.goto_tab.rawValue))
+        case GHOSTTY_ACTION_START_SEARCH:
+            // Also sent for Ghostty's own search key bindings.
+            let needle = String(cString: action.action.start_search.needle)
+            DispatchQueue.main.async {
+                if !needle.isEmpty { view.search.needle = needle }
+                view.startSearch()
+            }
+            return true
+        case GHOSTTY_ACTION_END_SEARCH:
+            DispatchQueue.main.async {
+                view.search.visible = false
+                view.search.total = nil
+                view.search.selected = nil
+            }
+            return true
+        case GHOSTTY_ACTION_SEARCH_TOTAL:
+            let total = action.action.search_total.total
+            DispatchQueue.main.async { view.search.total = total >= 0 ? Int(total) : nil }
+            return true
+        case GHOSTTY_ACTION_SEARCH_SELECTED:
+            let selected = action.action.search_selected.selected
+            DispatchQueue.main.async { view.search.selected = selected >= 0 ? Int(selected) : nil }
+            return true
         case GHOSTTY_ACTION_CELL_SIZE:
             let s = action.action.cell_size
             let scale = view.window?.backingScaleFactor ?? 2

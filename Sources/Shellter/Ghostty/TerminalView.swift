@@ -11,6 +11,7 @@ final class TerminalView: NSView {
     private(set) var surface: ghostty_surface_t?
     weak var eventHandler: TerminalEventHandler?
     var cellSize = NSSize(width: 8, height: 16)
+    let search = TerminalSearch()
 
     private var markedText = NSMutableAttributedString()
     private var keyTextAccumulator: [String]?
