@@ -31,7 +31,12 @@ final class SidebarSettings: ObservableObject {
 enum ProjectColor {
     private static let cache = NSCache<NSImage, NSColor>()
 
-    static func of(image: NSImage?, key: String) -> NSColor {
+    /// `dark`: the sidebar is dark, so the color must be light enough, and the other way round.
+    static func of(image: NSImage?, key: String, dark: Bool) -> NSColor {
+        legible(base(image: image, key: key), onDark: dark)
+    }
+
+    private static func base(image: NSImage?, key: String) -> NSColor {
         guard let image else { return IconResolver.color(for: key) }
         if let c = cache.object(forKey: image) { return c }
         let c = dominantColor(image) ?? IconResolver.color(for: key)
@@ -77,20 +82,23 @@ enum ProjectColor {
         let hue = sum[best].h / w
         let sat = min(max(sum[best].s / w, 0.35), 0.75)
         let bright = max(sum[best].b / w, 0.75)
-        return legible(NSColor(hue: hue, saturation: sat, brightness: bright, alpha: 1))
+        return NSColor(hue: hue, saturation: sat, brightness: bright, alpha: 1)
     }
 
-    /// Blue looks much darker than orange at the same brightness. Mix dark colors with
-    /// white until their relative luminance is high enough for a dark sidebar.
-    private static func legible(_ color: NSColor) -> NSColor {
+    /// Blue looks much darker than orange at the same brightness. On a dark sidebar, mix
+    /// dark colors with white until their relative luminance is high enough; on a light
+    /// sidebar, mix light colors with black until it is low enough.
+    static func legible(_ color: NSColor, onDark dark: Bool) -> NSColor {
         var c = color.usingColorSpace(.sRGB) ?? color
-        for _ in 0..<10 where luminance(c) < 0.24 {
-            c = c.blended(withFraction: 0.12, of: .white) ?? c
+        for _ in 0..<12 {
+            let l = luminance(c)
+            if dark ? l >= 0.24 : l <= 0.28 { break }
+            c = c.blended(withFraction: 0.12, of: dark ? .white : .black) ?? c
         }
         return c
     }
 
-    private static func luminance(_ c: NSColor) -> Double {
+    static func luminance(_ c: NSColor) -> Double {
         func lin(_ v: Double) -> Double { v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
         return 0.2126 * lin(c.redComponent) + 0.7152 * lin(c.greenComponent) + 0.0722 * lin(c.blueComponent)
     }

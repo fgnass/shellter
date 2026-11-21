@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct SidebarView: View {
     @ObservedObject var store: SessionStore
     @ObservedObject private var layout = SidebarSettings.shared
+    @Environment(\.colorScheme) private var colorScheme
     @State private var dropTargeted = false
     /// The tab or project that a dragged sidebar item is over.
     @State private var dragTarget: String?
@@ -29,7 +30,7 @@ struct SidebarView: View {
                             header(of: group)
                             ForEach(group.sessions) { s in
                                 HStack(spacing: 2) {
-                                    LineMarker(session: s, color: Color(nsColor: group.color))
+                                    LineMarker(session: s, color: Color(nsColor: group.color(dark: colorScheme == .dark)))
                                     row(for: s, icon: false)
                                 }
                                 .padding(.leading, 6)
@@ -171,7 +172,7 @@ struct SidebarView: View {
 
 extension SessionGroup {
     var icon: NSImage? { sessions.first?.dirIcon }
-    var color: NSColor { ProjectColor.of(image: icon, key: id) }
+    func color(dark: Bool) -> NSColor { ProjectColor.of(image: icon, key: id, dark: dark) }
 }
 
 private struct GroupHeader: View {
