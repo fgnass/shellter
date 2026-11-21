@@ -28,8 +28,18 @@ targets:
       - path: Resources/Fonts
         type: folder
         buildPhase: resources
+      - path: Resources/AgentIcons
+        type: folder
+        buildPhase: resources
       - path: Resources/defaults.config
         buildPhase: resources
+      - path: Resources/AppIcon.icon
+        type: file
+        buildPhase: resources
+      - path: vendor/bin/zmx
+        buildPhase:
+          copyFiles:
+            destination: executables
     dependencies:
       - framework: vendor/GhosttyKit.xcframework
         embed: false
@@ -40,6 +50,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.fgnass.shellter
         PRODUCT_NAME: Shellter
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_FILE: Sources/Shellter/Info.plist
         SWIFT_OBJC_BRIDGING_HEADER: Sources/Shellter/Shellter-Bridging-Header.h
         OTHER_LDFLAGS: ["-lstdc++"]

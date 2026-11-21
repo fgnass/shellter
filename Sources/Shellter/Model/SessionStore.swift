@@ -52,6 +52,7 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
             newTab(cwd: cwd)
         }
         if sessions.isEmpty { newTab(cwd: FileManager.default.homeDirectoryForCurrentUser.path) }
+        if Zmx.isAvailable { Zmx.killOrphans(keeping: Set(sessions.compactMap(\.zmxSession))) }
         pollTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.poll() }
         poll()
     }
@@ -64,14 +65,35 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
         let s = Session(cwd: dir)
         s.initialInput = input
         add(s)
-        // Insert the new tab after the selected one, so it lands in the same group.
-        if let sel = selected, let i = sessions.firstIndex(where: { $0.id == sel.id }) {
-            sessions.removeLast()
+        // Insert the new tab after the selected one if they share a project, else after
+        // the last tab of its project. A new project goes to the end of the sidebar.
+        sessions.removeLast()
+        let sameProject = { (other: Session) in other.projectRoot == s.projectRoot }
+        if let sel = selected, sameProject(sel), let i = sessions.firstIndex(where: { $0.id == sel.id }) {
             sessions.insert(s, at: i + 1)
+        } else if let i = sessions.lastIndex(where: sameProject) {
+            sessions.insert(s, at: i + 1)
+        } else {
+            sessions.append(s)
         }
         if select { selectedID = s.id }
         scheduleSave()
         return s
+    }
+
+    /// Opens one tab for each directory, for example for folders dropped on the sidebar.
+    /// A file opens its parent directory. The last new tab becomes the selected tab.
+    func openDirectories(_ urls: [URL]) {
+        var seen = Set<String>()
+        var last: Session?
+        for url in urls where url.isFileURL {
+            var isDir: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else { continue }
+            let dir = (isDir.boolValue ? url : url.deletingLastPathComponent()).standardizedFileURL.path
+            guard seen.insert(dir).inserted else { continue }
+            last = newTab(cwd: dir, select: false)
+        }
+        if let last { selectedID = last.id }
     }
 
     private func add(_ s: Session) {
@@ -98,6 +120,8 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
         guard let idx = orderedSessions.firstIndex(where: { $0.id == s.id }) else { return }
         let ordered = orderedSessions
         s.destroyView()
+        // Closing a tab ends its shell. (Quitting Shellter only detaches.)
+        if let name = s.zmxSession { Zmx.kill(name) }
         sessions.removeAll { $0.id == s.id }
         if selectedID == s.id {
             let remaining = ordered.filter { $0.id != s.id }
@@ -165,7 +189,10 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
         case .progress(let active):
             s.setProgress(active)
             if !active && !isVisible(s) { s.requestAttention() }
-        case .commandFinished, .childExited:
+        case .childExited:
+            // The zmx session ended (e.g. `exit` in the shell): close the tab, as without zmx.
+            if s.zmxSession != nil { close(s, force: true) }
+        case .commandFinished:
             break
         case .newTab:
             newTab(cwd: s.cwd)
@@ -195,12 +222,26 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
     // MARK: Polling (processes, ports, favicons, spinner decay)
 
     private func poll() {
+        // With zmx the shell runs on the daemon's PTY, not on the terminal's. Find it via
+        // the shell's PID. Without zmx use the terminal's TTY and foreground process.
+        if Zmx.isAvailable {
+            let list = sessions.map { ($0, $0.zmxSession) }
+            pollQueue.async { [weak self] in
+                let pids = Zmx.list()
+                DispatchQueue.main.async {
+                    for (s, name) in list {
+                        guard let name, let pid = pids[name] else { continue }
+                        self?.inspect(s, shellPID: pid)
+                    }
+                }
+            }
+        }
         for s in sessions {
             // Spinner ticks stop without an event; re-evaluate the state.
             if s.recompute() && !isVisible(s) { s.requestAttention() }
             if isVisible(s) { s.clearAttention() }
 
-            guard let tty = s.view?.ttyName else { continue }
+            guard s.zmxSession == nil, let tty = s.view?.ttyName else { continue }
             let fgPID = s.view?.foregroundPID
             pollQueue.async { [weak self, weak s] in
                 let snap = ProcessInspector.snapshot(tty: tty)
@@ -215,24 +256,49 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
         }
     }
 
+    private func inspect(_ s: Session, shellPID: pid_t) {
+        pollQueue.async { [weak self, weak s] in
+            guard let term = ProcessInspector.terminal(of: shellPID) else { return }
+            let snap = ProcessInspector.snapshot(dev: term.dev)
+            let fg = term.foreground > 0 ? term.foreground : shellPID
+            let fgCwd = ProcessInspector.cwd(of: fg)
+            let fgName = ProcessInspector.name(of: fg)
+            DispatchQueue.main.async {
+                guard let self, let s else { return }
+                if s.foregroundName != fgName { s.foregroundName = fgName }
+                self.apply(snap, fallbackCwd: fgCwd, to: s)
+            }
+        }
+    }
+
     private func apply(_ snap: ProcessInspector.Snapshot, fallbackCwd: String?, to s: Session) {
         let names = snap.pids.compactMap { snap.names[$0] }.filter { !$0.isEmpty }
         if names != s.processNames { s.processNames = names }
+        if snap.agent != s.agent { s.agent = snap.agent }
         // Without shell integration there is no OSC 7; use the process cwd instead.
         if let fallbackCwd, s.rawTitle.isEmpty || s.cwd == FileManager.default.homeDirectoryForCurrentUser.path {
             s.setCwd(fallbackCwd)
         }
-        guard snap.ports != s.ports else { return }
-        s.ports = snap.ports
-        if snap.ports.isEmpty {
+        guard snap.portOwners != s.listeningPorts else { return }
+        s.listeningPorts = snap.portOwners
+        PortClassifier.shared.relevantPorts(snap.portOwners) { [weak s] ports in
+            guard let s, s.listeningPorts == snap.portOwners else { return }
+            self.show(ports, on: s)
+        }
+    }
+
+    private func show(_ ports: [UInt16], on s: Session) {
+        guard ports != s.ports else { return }
+        s.ports = ports
+        if ports.isEmpty {
             s.serverIcon = nil
             s.serverPort = nil
             return
         }
-        IconResolver.shared.serverIcon(ports: snap.ports) { [weak s] img, port in
-            guard let s, s.ports == snap.ports else { return }
+        IconResolver.shared.serverIcon(ports: ports) { [weak s] img, port in
+            guard let s, s.ports == ports else { return }
             s.serverIcon = img
-            s.serverPort = port ?? snap.ports.first
+            s.serverPort = port ?? ports.first
         }
     }
 

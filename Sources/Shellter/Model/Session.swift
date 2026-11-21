@@ -14,11 +14,16 @@ final class Session: ObservableObject, Identifiable {
     @Published var cwd: String
     @Published private(set) var projectRoot: String
     @Published var activity: ActivityState = .idle
+    /// Listening ports that the sidebar shows (see PortClassifier).
     @Published var ports: [UInt16] = []
+    /// All listening ports of the tab's processes, with their owners.
+    var listeningPorts: [UInt16: pid_t] = [:]
     @Published var serverIcon: NSImage?
     @Published var serverPort: UInt16?
     @Published var dirIcon: NSImage?
     @Published var processNames: [String] = []
+    /// The coding agent that runs in this tab, if any.
+    @Published var agent: Agent?
 
     /// Created on first display, so restored tabs start their shell only when needed.
     private(set) var view: TerminalView?
@@ -38,9 +43,18 @@ final class Session: ObservableObject, Identifiable {
     /// Text typed into the shell once it starts (used by `-ShellterRun`).
     var initialInput: String?
 
+    /// The zmx session that keeps this tab's shell alive (see Zmx).
+    var zmxSession: String? { Zmx.isAvailable ? Zmx.sessionName(for: id) : nil }
+
     func ensureView() -> TerminalView {
         if let view { return view }
-        let v = TerminalView(workingDirectory: cwd, initialInput: initialInput)
+        let v: TerminalView
+        if let name = zmxSession, let command = Zmx.attachCommand(session: name) {
+            v = TerminalView(workingDirectory: cwd, initialInput: initialInput,
+                             command: command, env: Zmx.environment)
+        } else {
+            v = TerminalView(workingDirectory: cwd, initialInput: initialInput)
+        }
         view = v
         return v
     }
@@ -58,6 +72,7 @@ final class Session: ObservableObject, Identifiable {
         let t = Self.stripSpinner(rawTitle).trimmingCharacters(in: .whitespaces)
         if !t.isEmpty && !Self.looksLikePath(t) { return t }
         // Shells often set the title to the cwd: the sidebar already shows that.
+        if let agent { return agent.name }
         return foregroundName.isEmpty ? "shell" : foregroundName
     }
 

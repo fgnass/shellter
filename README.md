@@ -9,6 +9,10 @@ A macOS terminal with vertical tabs, grouped by project. Built on libghostty.
   animated spinner in the title), a bell when it wants input (BEL, OSC 9/777
   notification, or work finished while the tab was not visible).
 - Tabs and their directories persist across restarts.
+- Processes survive a restart of Shellter: each tab runs in a
+  [zmx](https://github.com/neurosnap/zmx) session. When Shellter starts again,
+  the tab attaches and zmx restores screen and scrollback. Closing a tab ends
+  its session. (A reboot ends all sessions; the tabs then start new shells.)
 
 ## Build
 
@@ -18,7 +22,9 @@ toolchain (`xcodebuild -downloadComponent MetalToolchain`).
 ```sh
 git submodule update --init
 ./scripts/build-ghostty.sh   # builds GhosttyKit.xcframework (slow, once)
+./scripts/build-zmx.sh       # builds the bundled zmx (once)
 ./scripts/build.sh           # builds Shellter.app, prints its path
+./scripts/restart.sh         # builds, quits the running Debug build, starts it again
 ```
 
 ## Fonts and themes

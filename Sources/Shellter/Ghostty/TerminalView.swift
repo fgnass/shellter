@@ -24,7 +24,9 @@ final class TerminalView: NSView {
         return Unmanaged<TerminalView>.fromOpaque(userdata).takeUnretainedValue()
     }
 
-    init(workingDirectory: String?, initialInput: String? = nil) {
+    /// `command` replaces the login shell; `env` adds variables for it.
+    init(workingDirectory: String?, initialInput: String? = nil,
+         command: String? = nil, env: [String: String] = [:]) {
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         guard let app = GhosttyApp.shared.app else { return }
 
@@ -37,14 +39,40 @@ final class TerminalView: NSView {
         cfg.context = GHOSTTY_SURFACE_CONTEXT_TAB
 
         let wd = workingDirectory.flatMap { FileManager.default.fileExists(atPath: $0) ? $0 : nil }
+        // C strings for the env vars; they must live until ghostty_surface_new returns.
+        var envVars = env.map { ghostty_env_var_s(key: strdup($0.key), value: strdup($0.value)) }
+        defer {
+            for v in envVars {
+                free(UnsafeMutablePointer(mutating: v.key))
+                free(UnsafeMutablePointer(mutating: v.value))
+            }
+        }
         surface = (wd ?? "").withCString { wdPtr in
             (initialInput ?? "").withCString { inPtr in
-                if wd != nil { cfg.working_directory = wdPtr }
-                if initialInput != nil { cfg.initial_input = inPtr }
-                return ghostty_surface_new(app, &cfg)
+                (command ?? "").withCString { cmdPtr in
+                    envVars.withUnsafeMutableBufferPointer { envPtr in
+                        if wd != nil { cfg.working_directory = wdPtr }
+                        if initialInput != nil { cfg.initial_input = inPtr }
+                        if command != nil { cfg.command = cmdPtr }
+                        if !envPtr.isEmpty {
+                            cfg.env_vars = envPtr.baseAddress
+                            cfg.env_var_count = envPtr.count
+                        }
+                        return ghostty_surface_new(app, &cfg)
+                    }
+                }
             }
         }
         if surface == nil { NSLog("Shellter: ghostty_surface_new failed") }
+        registerForDrops()
+    }
+
+    /// Inserts text as a paste (bracketed paste, with Ghostty's paste protection).
+    func pasteText(_ text: String) {
+        guard let surface else { return }
+        let len = text.utf8CString.count - 1
+        guard len > 0 else { return }
+        text.withCString { ghostty_surface_paste_text(surface, $0, UInt(len)) }
     }
 
     required init?(coder: NSCoder) { fatalError("not supported") }

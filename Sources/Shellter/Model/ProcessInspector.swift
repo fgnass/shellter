@@ -7,6 +7,8 @@ enum ProcessInspector {
         var pids: [pid_t] = []
         var names: [pid_t: String] = [:]
         var ports: [UInt16] = []          // TCP ports in LISTEN state, sorted
+        var portOwners: [UInt16: pid_t] = [:]
+        var agent: Agent?
     }
 
     /// All processes whose controlling terminal is `tty` (e.g. "/dev/ttys003").
@@ -14,8 +16,20 @@ enum ProcessInspector {
         let path = tty.hasPrefix("/dev/") ? tty : "/dev/\(tty)"
         var st = stat()
         guard stat(path, &st) == 0 else { return Snapshot() }
-        let dev = UInt32(bitPattern: st.st_rdev)
+        return snapshot(dev: UInt32(bitPattern: st.st_rdev))
+    }
 
+    /// The controlling terminal of a process and its foreground process group.
+    static func terminal(of pid: pid_t) -> (dev: UInt32, foreground: pid_t)? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size,
+              info.e_tdev != UInt32.max, info.e_tdev != 0 else { return nil }
+        return (info.e_tdev, pid_t(info.e_tpgid))
+    }
+
+    /// All processes whose controlling terminal is the device `dev`.
+    static func snapshot(dev: UInt32) -> Snapshot {
         var snap = Snapshot()
         var ports = Set<UInt16>()
         for pid in allPIDs() {
@@ -25,7 +39,13 @@ enum ProcessInspector {
                   info.e_tdev == dev else { continue }
             snap.pids.append(pid)
             snap.names[pid] = name(of: pid)
-            ports.formUnion(listeningPorts(of: pid))
+            if snap.agent == nil {
+                snap.agent = Agent.detect(path: Self.path(of: pid), args: arguments(of: pid))
+            }
+            for port in listeningPorts(of: pid) {
+                ports.insert(port)
+                snap.portOwners[port] = pid
+            }
         }
         snap.ports = ports.sorted()
         return snap
@@ -43,6 +63,13 @@ enum ProcessInspector {
     static func name(of pid: pid_t) -> String {
         var buf = [CChar](repeating: 0, count: 256)
         let n = proc_name(pid, &buf, UInt32(buf.count))
+        return n > 0 ? String(cString: buf) : ""
+    }
+
+    /// The path of the executable.
+    static func path(of pid: pid_t) -> String {
+        var buf = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        let n = proc_pidpath(pid, &buf, UInt32(buf.count))
         return n > 0 ? String(cString: buf) : ""
     }
 

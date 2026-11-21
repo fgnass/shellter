@@ -4,6 +4,7 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = SessionStore()
     private var windowController: MainWindowController?
+    private var termSource: DispatchSourceSignal?
 
     static func main() {
         LaunchEnvironment.clean()
@@ -25,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController = wc
         store.onEmpty = { NSApp.terminate(nil) }
         store.start()
+        handleTerminationSignal()
         wc.showWindow(nil)
         wc.showSelected()
         NSApp.activate(ignoringOtherApps: true)
@@ -34,6 +36,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// SIGTERM (e.g. from `scripts/restart.sh`) quits without a dialog, but saves the tabs first.
+    private func handleTerminationSignal() {
+        signal(SIGTERM, SIG_IGN)
+        let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        source.setEventHandler { [weak self] in
+            self?.store.save()
+            exit(0)
+        }
+        source.resume()
+        termSource = source
+    }
+
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         windowController?.showWindow(nil)
         return true
@@ -41,6 +55,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         store.save()
+        // With zmx the processes keep running after quitting: nothing to confirm.
+        if Zmx.isAvailable { return .terminateNow }
         let busy = store.sessions.filter { $0.view?.needsConfirmQuit ?? false }
         guard !busy.isEmpty else { return .terminateNow }
         let alert = NSAlert()

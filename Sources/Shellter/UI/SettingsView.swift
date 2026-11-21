@@ -158,6 +158,7 @@ struct FontSettingsView: View {
 
 struct WindowSettingsView: View {
     @ObservedObject private var settings = AppearanceSettings.shared
+    @ObservedObject private var layout = SidebarSettings.shared
     @ObservedObject private var chrome = WindowChrome.shared
 
     private var opacity: Double { settings.state.backgroundOpacity ?? chrome.opacity }
@@ -176,6 +177,16 @@ struct WindowSettingsView: View {
                 .pickerStyle(.radioGroup)
                 Text("Terminal colors: the sidebar has the background color of the theme. "
                      + "macOS sidebar: the translucent system sidebar.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Section("Tabs") {
+                Picker("Projects", selection: $layout.groupStyle) {
+                    ForEach(SidebarSettings.GroupStyle.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.radioGroup)
+                Toggle("Condensed tab titles", isOn: $layout.condensedTitles)
+                Text("Condensed titles fit about 20 % more text in a row.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
