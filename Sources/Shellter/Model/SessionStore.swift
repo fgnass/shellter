@@ -119,10 +119,10 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
     }
 
     func close(_ s: Session, force: Bool = false) {
-        if !force, let v = s.view, v.needsConfirmQuit {
+        if !force, let running = runningProcess(in: s) {
             let alert = NSAlert()
             alert.messageText = "Close “\(s.title)”?"
-            alert.informativeText = "A process is still running in this tab."
+            alert.informativeText = "\(running) is still running in this tab. Closing the tab ends it."
             alert.addButton(withTitle: "Close")
             alert.addButton(withTitle: "Cancel")
             guard alert.runModal() == .alertFirstButtonReturn else { return }
@@ -139,6 +139,20 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
         }
         scheduleSave()
         if sessions.isEmpty { onEmpty?() }
+    }
+
+    /// The name of the program that runs in the tab besides its shell, or nil.
+    /// With zmx the shell outlives the terminal view (and a restored tab has no view
+    /// until it is shown), so ask the process table, not the view.
+    func runningProcess(in s: Session) -> String? {
+        if let name = s.zmxSession {
+            guard let shell = Zmx.list()[name],
+                  let term = ProcessInspector.terminal(of: shell),
+                  term.foreground > 0, term.foreground != shell else { return nil }
+            return s.agent?.name ?? ProcessInspector.name(of: term.foreground)
+        }
+        guard let v = s.view, v.needsConfirmQuit else { return nil }
+        return s.agent?.name ?? "A process"
     }
 
     func select(_ s: Session) { selectedID = s.id }
