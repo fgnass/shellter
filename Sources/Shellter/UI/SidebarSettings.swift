@@ -32,8 +32,12 @@ enum ProjectColor {
     private static let cache = NSCache<NSImage, NSColor>()
 
     /// `dark`: the sidebar is dark, so the color must be light enough, and the other way round.
+    /// A color the user chose, or the color of a letter icon, is used as it is, so the line
+    /// matches the project icon. A color taken from an image icon is made legible.
     static func of(image: NSImage?, key: String, dark: Bool) -> NSColor {
-        legible(ProjectColors.shared.color(for: key) ?? base(image: image, key: key), onDark: dark)
+        if let custom = ProjectColors.shared.color(for: key) { return custom }
+        guard image != nil else { return IconResolver.color(for: key) }
+        return legible(base(image: image, key: key), onDark: dark)
     }
 
     private static func base(image: NSImage?, key: String) -> NSColor {

@@ -330,6 +330,7 @@ struct StatusBadge: View {
 }
 
 struct ProjectIcon: View {
+    @ObservedObject private var colors = ProjectColors.shared
     let image: NSImage?
     let name: String
     let key: String
@@ -344,7 +345,7 @@ struct ProjectIcon: View {
                     .aspectRatio(contentMode: .fit)
             } else {
                 RoundedRectangle(cornerRadius: size * 0.25)
-                    .fill(Color(nsColor: ProjectColors.shared.color(for: key) ?? IconResolver.color(for: key)))
+                    .fill(Color(nsColor: colors.color(for: key) ?? IconResolver.color(for: key)))
                     .overlay(
                         Text(String(name.prefix(1)).uppercased())
                             .font(.system(size: size * 0.6, weight: .semibold, design: .rounded))
@@ -406,7 +407,7 @@ private struct LineMarker: View {
     }
 
     private var segment: some View {
-        Rectangle().fill(color.opacity(0.75)).frame(width: 2).frame(maxHeight: .infinity)
+        Rectangle().fill(color).frame(width: 2).frame(maxHeight: .infinity)
     }
 }
 
