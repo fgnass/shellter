@@ -124,6 +124,12 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
                 if !NSApp.isActive { NSApp.requestUserAttention(.informationalRequest) }
             }
             .store(in: &bag)
+        // The Dock icon shows how many tabs want attention.
+        s.$activity
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateDockBadge() }
+            .store(in: &bag)
         // Forward session changes so the sidebar refreshes.
         s.objectWillChange
             .receive(on: DispatchQueue.main)
@@ -147,6 +153,7 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
         if let name = s.zmxSession { Zmx.kill(name) }
         sessions.removeAll { $0.id == s.id }
         appWindows[s.id] = nil
+        updateDockBadge()
         if selectedID == s.id {
             let remaining = ordered.filter { $0.id != s.id }
             selectedID = remaining.isEmpty ? nil : remaining[min(idx, remaining.count - 1)].id
@@ -360,6 +367,13 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
                 self.documentWindows = found
             }
         }
+    }
+
+    /// The number of tabs with the bell on the Dock icon, or no badge.
+    private func updateDockBadge() {
+        let n = sessions.filter { $0.activity == .needsInput }.count
+        let label = n > 0 ? String(n) : nil
+        if NSApp.dockTile.badgeLabel != label { NSApp.dockTile.badgeLabel = label }
     }
 
     /// The windows of other apps in a project: apps first, then files, each once.
