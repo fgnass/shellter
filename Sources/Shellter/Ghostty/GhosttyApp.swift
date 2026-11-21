@@ -43,7 +43,10 @@ final class GhosttyApp {
             NSLog("Shellter: ghostty_config_new failed")
             return
         }
-        // Use the user's normal Ghostty config, then Shellter-specific overrides.
+        // Order: Shellter defaults, the user's Ghostty config, Shellter overrides.
+        if let defaults = Bundle.main.path(forResource: "defaults", ofType: "config") {
+            ghostty_config_load_file(cfg, defaults)
+        }
         ghostty_config_load_default_files(cfg)
         let override = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".config/shellter/config").path

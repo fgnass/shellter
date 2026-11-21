@@ -25,6 +25,8 @@ targets:
       - path: Resources/terminfo
         type: folder
         buildPhase: resources
+      - path: Resources/defaults.config
+        buildPhase: resources
     dependencies:
       - framework: vendor/GhosttyKit.xcframework
         embed: false
