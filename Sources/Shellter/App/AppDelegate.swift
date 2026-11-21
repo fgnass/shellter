@@ -28,7 +28,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wc.showSelected()
         NSApp.activate(ignoringOtherApps: true)
         if UserDefaults.standard.bool(forKey: "ShellterShowSettings") {
-            SettingsWindowController.shared.show()
+            // Test hook. Opened a bit later, so it can be profiled apart from the launch.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { SettingsWindowController.open() }
         }
     }
 
@@ -68,7 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func nextNeedingInput(_ sender: Any?) { store.selectNextNeedingInput() }
     @objc func selectTabByTag(_ sender: NSMenuItem) { store.selectIndex(sender.tag) }
     @objc func toggleSidebar(_ sender: Any?) { windowController?.toggleSidebar(sender) }
-    @objc func showSettings(_ sender: Any?) { SettingsWindowController.shared.show() }
+    @objc func showSettings(_ sender: Any?) { SettingsWindowController.open() }
 
     // MARK: Menu
 

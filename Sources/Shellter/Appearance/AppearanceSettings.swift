@@ -30,8 +30,24 @@ final class AppearanceSettings: ObservableObject {
     }
 
     @Published var state = State() {
-        didSet { if state != oldValue { apply() } }
+        didSet {
+            guard state != oldValue else { return }
+            if Self.themeKey(state) != Self.themeKey(oldValue) {
+                cachedThemeValue = nil
+                lastEditorStamp = nil
+            }
+            scheduleApply()
+        }
     }
+
+    /// The fields that select the theme.
+    private static func themeKey(_ s: State) -> [String?] {
+        [s.followEditor, s.darkThemeID, s.lightThemeID, String(s.separateLightTheme)]
+    }
+
+    /// The `theme =` value, computed once per theme choice (it reads editor files).
+    private var cachedThemeValue: String??
+    private var applyPending = false
 
     /// The theme ids that apply when following an editor (for display).
     @Published private(set) var followedThemes: (dark: String?, light: String?) = (nil, nil)
@@ -77,11 +93,20 @@ final class AppearanceSettings: ObservableObject {
 
     // MARK: Apply
 
+    /// Applies changes at most ~30 times per second, so a dragged slider stays smooth.
+    private func scheduleApply() {
+        guard !applyPending else { return }
+        applyPending = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0 / 30) { [weak self] in
+            self?.applyPending = false
+            self?.apply()
+        }
+    }
+
     private func apply() {
         if let data = try? JSONEncoder().encode(state) {
             try? data.write(to: Self.stateURL, options: .atomic)
         }
-        lastEditorStamp = nil
         writeConfig()
         GhosttyApp.shared.reloadConfig()
     }
@@ -104,7 +129,8 @@ final class AppearanceSettings: ObservableObject {
         if let blur = state.backgroundBlur {
             lines.append("background-blur = \(blur)")
         }
-        if let value = themeConfigValue() {
+        if cachedThemeValue == nil { cachedThemeValue = .some(themeConfigValue()) }
+        if let value = cachedThemeValue! {
             lines.append("theme = \(value)")
         }
         try? (lines.joined(separator: "\n") + "\n").write(to: Self.configURL, atomically: true, encoding: .utf8)
@@ -168,7 +194,8 @@ final class AppearanceSettings: ObservableObject {
         if !first { ThemeLibrary.shared.reload() }
         let before = followedThemes
         let ids = editorThemeIDs(editor.name)
-        if first || ids.dark != before.dark || ids.light != before.light {
+        if ids.dark != before.dark || ids.light != before.light {
+            cachedThemeValue = nil
             writeConfig()
             GhosttyApp.shared.reloadConfig()
         }

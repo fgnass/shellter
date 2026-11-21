@@ -91,10 +91,12 @@ final class ThemeLibrary {
         editors.flatMap { editorThemes[$0.name] ?? [] } + imported + builtin
     }
 
+    private var byID: [String: TerminalTheme] = [:]
+
     func theme(id: String?) -> TerminalTheme? {
         guard let id else { return nil }
         loadIfNeeded()
-        return all.first { $0.id == id }
+        return byID[id]
     }
 
     func loadIfNeeded() {
@@ -108,6 +110,7 @@ final class ThemeLibrary {
         editorThemes = [:]
         for e in editors { editorThemes[e.name] = loadEditorThemes(e) }
         imported = loadImported()
+        byID = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
     }
 
     // MARK: Built-in (Ghostty theme files)
@@ -300,6 +303,7 @@ final class ThemeLibrary {
         try FileManager.default.createDirectory(at: Self.importedDir, withIntermediateDirectories: true)
         try theme.ghosttyConfig.write(to: Self.importedDir.appendingPathComponent(name), atomically: true, encoding: .utf8)
         imported = loadImported()
+        byID = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         return imported.first { $0.id == theme.id } ?? theme
     }
 
@@ -341,7 +345,12 @@ final class ThemeLibrary {
     // MARK: JSONC
 
     static func readJSON(_ url: URL) -> Any? {
-        guard let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8) else { return nil }
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        // JSON5 allows comments and trailing commas, like VS Code's JSONC.
+        if let obj = try? JSONSerialization.jsonObject(with: data, options: [.json5Allowed, .fragmentsAllowed]) {
+            return obj
+        }
+        guard let text = String(data: data, encoding: .utf8) else { return nil }
         return try? JSONSerialization.jsonObject(with: Data(stripJSONC(text).utf8), options: [.fragmentsAllowed])
     }
 

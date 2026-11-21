@@ -2,7 +2,11 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 final class SettingsWindowController: NSWindowController {
-    static let shared = SettingsWindowController()
+    private static let shared = SettingsWindowController()
+
+    static func open() {
+        shared.show()
+    }
 
     private init() {
         let window = NSWindow(
@@ -105,22 +109,15 @@ struct FontSettingsView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
-            List(selection: Binding(
-                get: { selected },
-                set: { name in
-                    guard let name else { return }
+            SelectableList(
+                sections: [ListSection(id: "bundled", title: "Bundled", items: FontLibrary.bundledFamilies)]
+                    + (installed.isEmpty ? [] : [ListSection(id: "installed", title: "Installed", items: installed)]),
+                selection: selected,
+                onSelect: { name in
                     settings.state.fontFamily = name == FontLibrary.defaultFamily ? nil : name
-                }
-            )) {
-                Section("Bundled") {
-                    ForEach(FontLibrary.bundledFamilies) { row($0) }
-                }
-                if !installed.isEmpty {
-                    Section("Installed") {
-                        ForEach(installed) { row($0) }
-                    }
-                }
-            }
+                },
+                row: { row($0) }
+            )
             .frame(width: 260)
 
             VStack(alignment: .leading, spacing: 14) {
@@ -143,7 +140,7 @@ struct FontSettingsView: View {
                 Spacer()
             }
         }
-        .onAppear { installed = FontLibrary.installedMonospaceFamilies() }
+        .onAppear { FontLibrary.loadInstalledMonospaceFamilies { installed = $0 } }
     }
 
     private func row(_ f: FontFamily) -> some View {
@@ -154,7 +151,6 @@ struct FontSettingsView: View {
                 Text("ligatures").font(.caption2).foregroundStyle(.secondary)
             }
         }
-        .tag(f.name)
     }
 }
 
@@ -301,24 +297,15 @@ struct ThemeSettingsView: View {
                     .labelsHidden()
                     .frame(width: 90)
                 }
-                List(selection: Binding(
-                    get: { editingLight ? settings.state.lightThemeID : settings.state.darkThemeID },
-                    set: { id in
+                SelectableList(
+                    sections: themeSections,
+                    selection: editingLight ? settings.state.lightThemeID : settings.state.darkThemeID,
+                    onSelect: { id in
                         if editingLight { settings.state.lightThemeID = id } else { settings.state.darkThemeID = id }
-                    }
-                )) {
-                    ForEach(editors) { e in
-                        let list = filtered(lib.editorThemes[e.name] ?? [])
-                        if !list.isEmpty {
-                            Section("From \(e.name)") { ForEach(list) { ThemeRow(theme: $0).tag(Optional($0.id)) } }
-                        }
-                    }
-                    let imported = filtered(lib.imported)
-                    if !imported.isEmpty {
-                        Section("Imported") { ForEach(imported) { ThemeRow(theme: $0).tag(Optional($0.id)) } }
-                    }
-                    Section("Built-in") { ForEach(filtered(lib.builtin)) { ThemeRow(theme: $0).tag(Optional($0.id)) } }
-                }
+                    },
+                    row: { ThemeRow(theme: $0) }
+                )
+                .id(editingLight)   // scroll to the other selection
                 HStack {
                     Button("Import…", action: importTheme)
                     Spacer()
@@ -346,6 +333,19 @@ struct ThemeSettingsView: View {
                 Spacer()
             }
         }
+    }
+
+    private var themeSections: [ListSection<TerminalTheme>] {
+        var out: [ListSection<TerminalTheme>] = []
+        for e in editors {
+            let list = filtered(lib.editorThemes[e.name] ?? [])
+            if !list.isEmpty { out.append(ListSection(id: "editor:\(e.name)", title: "From \(e.name)", items: list)) }
+        }
+        let imported = filtered(lib.imported)
+        if !imported.isEmpty { out.append(ListSection(id: "imported", title: "Imported", items: imported)) }
+        let builtin = filtered(lib.builtin)
+        if !builtin.isEmpty { out.append(ListSection(id: "builtin", title: "Built-in", items: builtin)) }
+        return out
     }
 
     private func filtered(_ list: [TerminalTheme]) -> [TerminalTheme] {

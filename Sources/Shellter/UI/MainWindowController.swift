@@ -4,28 +4,10 @@ import SwiftUI
 
 /// Hosts the terminal of the selected tab.
 final class TerminalContainerController: NSViewController {
-    /// The macOS sidebar material behind the terminal. The terminal draws its
-    /// background color over it, with `background-opacity`.
-    private let material: NSVisualEffectView = {
-        let v = NSVisualEffectView()
-        v.material = .sidebar
-        v.blendingMode = .behindWindow
-        v.state = .followsWindowActiveState
-        v.autoresizingMask = [.width, .height]
-        v.isHidden = true
-        return v
-    }()
-
     override func loadView() {
         let v = NSView()
         v.wantsLayer = true
-        material.frame = v.bounds
-        v.addSubview(material)
         view = v
-    }
-
-    func setMaterial(_ on: Bool) {
-        material.isHidden = !on
     }
 
     func show(_ terminal: TerminalView) {
@@ -60,6 +42,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     }()
     private let container = TerminalContainerController()
     private var sidebarItem: NSSplitViewItem!
+    private var root: ChromeRootController!
     private var bag = Set<AnyCancellable>()
 
     init(store: SessionStore) {
@@ -88,7 +71,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         split.addSplitViewItem(contentItem)
         split.splitView.autosaveName = "ShellterSplit"
         split.splitView.dividerStyle = .thin
-        window.contentViewController = split
+        let root = ChromeRootController(split: split)
+        self.root = root
+        window.contentViewController = root
         window.minSize = NSSize(width: 600, height: 400)
         if !window.setFrameUsingName("ShellterMain") || window.frame.width < 600 {
             window.setContentSize(NSSize(width: 1200, height: 760))
@@ -110,7 +95,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     private func applyChrome() {
         guard let window else { return }
         WindowChrome.shared.apply(to: window)
-        container.setMaterial(WindowChrome.shared.usesMaterial(in: window))
+        root.setMaterial(WindowChrome.shared.sidebarStyle == .system)
         split.splitView.needsDisplay = true
     }
 
@@ -151,10 +136,58 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 }
 
-/// A divider that fits the terminal colors.
+/// Holds the split view over one material layer for the whole window, so the sidebar,
+/// the divider and the terminal share the same backdrop (macOS sidebar style).
+final class ChromeRootController: NSViewController {
+    private let split: NSSplitViewController
+    private let material: NSVisualEffectView = {
+        let v = NSVisualEffectView()
+        v.material = .sidebar
+        v.blendingMode = .behindWindow
+        v.state = .followsWindowActiveState
+        v.autoresizingMask = [.width, .height]
+        v.isHidden = true
+        return v
+    }()
+
+    init(split: NSSplitViewController) {
+        self.split = split
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError("not supported") }
+
+    override func loadView() {
+        let v = NSView(frame: NSRect(x: 0, y: 0, width: 1200, height: 760))
+        material.frame = v.bounds
+        v.addSubview(material)
+        addChild(split)
+        split.view.frame = v.bounds
+        split.view.autoresizingMask = [.width, .height]
+        v.addSubview(split.view)
+        view = v
+    }
+
+    func setMaterial(_ on: Bool) {
+        material.isHidden = !on
+    }
+}
+
+/// A divider that fits the terminal colors. It fills its gap first, so the desktop
+/// does not show through a transparent window.
 final class ChromeSplitView: NSSplitView {
     override var dividerColor: NSColor {
-        WindowChrome.shared.isDark ? NSColor(white: 1, alpha: 0.06) : NSColor(white: 0, alpha: 0.12)
+        WindowChrome.shared.isDark ? NSColor(white: 1, alpha: 0.07) : NSColor(white: 0, alpha: 0.1)
+    }
+
+    override func drawDivider(in rect: NSRect) {
+        let chrome = WindowChrome.shared
+        if chrome.sidebarStyle == .terminal {
+            chrome.background.withAlphaComponent(chrome.opacity).setFill()
+            rect.fill(using: .copy)
+        }
+        dividerColor.setFill()
+        rect.fill(using: .sourceOver)
     }
 }
 

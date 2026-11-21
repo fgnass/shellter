@@ -29,10 +29,12 @@ final class WindowChrome: ObservableObject {
     func update() {
         let app = GhosttyApp.shared
         let bg = app.backgroundColor ?? .black
-        background = bg
-        opacity = app.backgroundOpacity
-        blur = app.backgroundBlur
-        isDark = Self.luminance(bg) < 0.5
+        // Assign only changed values: every assignment re-renders the sidebar.
+        if background != bg { background = bg }
+        if opacity != app.backgroundOpacity { opacity = app.backgroundOpacity }
+        if blur != app.backgroundBlur { blur = app.backgroundBlur }
+        let dark = Self.luminance(bg) < 0.5
+        if isDark != dark { isDark = dark }
     }
 
     var appearance: NSAppearance? {
@@ -47,28 +49,28 @@ final class WindowChrome: ObservableObject {
     /// With the macOS sidebar style, a transparent terminal gets the same material
     /// as the sidebar, tinted with the theme background.
     func usesMaterial(in window: NSWindow) -> Bool {
-        sidebarStyle == .system && opacity < 1 && !window.styleMask.contains(.fullScreen)
+        sidebarStyle == .system && !window.styleMask.contains(.fullScreen)
     }
 
     /// Makes the window see-through when the terminal background is not opaque.
     func apply(to window: NSWindow) {
-        window.appearance = appearance
+        // Change only what differs: a new appearance re-draws the whole window.
+        if window.appearance?.name != appearance?.name { window.appearance = appearance }
         let fullScreen = window.styleMask.contains(.fullScreen)
         let transparent = opacity < 1 && !fullScreen
-        if transparent {
-            window.isOpaque = false
-            // Not .clear: this matches the look of Terminal.app (same as Ghostty).
-            window.backgroundColor = .white.withAlphaComponent(0.001)
-        } else {
-            window.isOpaque = true
-            window.backgroundColor = background
-        }
+        // Not .clear for a transparent window: this matches Terminal.app (same as Ghostty).
+        let color = transparent ? NSColor.white.withAlphaComponent(0.001) : background
+        if window.isOpaque == transparent { window.isOpaque = !transparent }
+        if window.backgroundColor != color { window.backgroundColor = color }
         // The material blurs by itself.
         let radius = transparent && !usesMaterial(in: window) ? blur : 0
-        _ = CGSSetWindowBackgroundBlurRadius(
-            CGSDefaultConnectionForThread(), window.windowNumber, Int32(radius))
-        window.invalidateShadow()
+        if radius != appliedBlur[window.windowNumber] {
+            appliedBlur[window.windowNumber] = radius
+            _ = CGSSetWindowBackgroundBlurRadius(
+                CGSDefaultConnectionForThread(), window.windowNumber, Int32(radius))
+        }
     }
+    private var appliedBlur: [Int: Int] = [:]
 }
 
 @_silgen_name("CGSDefaultConnectionForThread")
@@ -87,25 +89,9 @@ struct SidebarBackground: View {
             case .terminal:
                 Color(nsColor: chrome.background).opacity(chrome.opacity)
             case .system:
-                VisualEffect(material: .sidebar)
+                Color.clear   // the window's material shows through
             }
         }
         .ignoresSafeArea()
-    }
-}
-
-struct VisualEffect: NSViewRepresentable {
-    let material: NSVisualEffectView.Material
-
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let v = NSVisualEffectView()
-        v.material = material
-        v.blendingMode = .behindWindow
-        v.state = .followsWindowActiveState
-        return v
-    }
-
-    func updateNSView(_ v: NSVisualEffectView, context: Context) {
-        v.material = material
     }
 }

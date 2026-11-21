@@ -36,35 +36,45 @@ enum FontLibrary {
     private(set) static var bundledFamilies: [FontFamily] = []
 
     /// Registers all fonts in Resources/Fonts for this process. Nothing is installed system-wide.
-    static func registerBundledFonts() {
+    /// Registration is slow (~0.5 s), so only the fonts of `family` are registered now, the
+    /// others in the background. `completion` runs on the main thread when all are registered.
+    static func registerBundledFonts(now family: String?, completion: @escaping () -> Void) {
         guard let root = fontsURL,
               let e = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil) else { return }
-        var urls: [URL] = []
+        var now: [URL] = [], later: [URL] = []
         var names = Set<String>()
         for case let url as URL in e where ["ttf", "otf", "ttc"].contains(url.pathExtension.lowercased()) {
-            urls.append(url)
             let descriptors = CTFontManagerCreateFontDescriptorsFromURL(url as CFURL) as? [CTFontDescriptor] ?? []
-            for d in descriptors {
-                if let fam = CTFontDescriptorCopyAttribute(d, kCTFontFamilyNameAttribute) as? String {
-                    names.insert(fam)
-                }
+            let families = descriptors.compactMap {
+                CTFontDescriptorCopyAttribute($0, kCTFontFamilyNameAttribute) as? String
             }
+            names.formUnion(families)
+            if let family, families.contains(family) { now.append(url) } else { later.append(url) }
         }
-        CTFontManagerRegisterFontURLs(urls as CFArray, .process, false, nil)
         bundledFamilies = names.sorted()
             .map { FontFamily(name: $0, bundled: true, ligatures: ligatureFamilies.contains($0)) }
+        if !now.isEmpty { CTFontManagerRegisterFontURLs(now as CFArray, .process, false, nil) }
+        DispatchQueue.global(qos: .userInitiated).async {
+            CTFontManagerRegisterFontURLs(later as CFArray, .process, false, nil)
+            DispatchQueue.main.async(execute: completion)
+        }
     }
 
     /// Installed fixed-pitch families that are not bundled.
+    /// Uses CoreText, so it can run in the background.
     static func installedMonospaceFamilies() -> [FontFamily] {
         let bundled = Set(bundledFamilies.map(\.name))
-        let fm = NSFontManager.shared
-        let mono = fm.availableFontNames(with: .fixedPitchFontMask) ?? []
+        let collection = CTFontCollectionCreateFromAvailableFonts(nil)
+        let descriptors = CTFontCollectionCreateMatchingFontDescriptors(collection) as? [CTFontDescriptor] ?? []
         var families = Set<String>()
-        for name in mono {
-            if let f = NSFont(name: name, size: 12), let fam = f.familyName, !fam.hasPrefix(".") {
-                families.insert(fam)
-            }
+        for d in descriptors {
+            guard let traits = CTFontDescriptorCopyAttribute(d, kCTFontTraitsAttribute) as? [CFString: Any],
+                  let sym = traits[kCTFontSymbolicTrait] as? UInt32,
+                  sym & CTFontSymbolicTraits.traitMonoSpace.rawValue != 0,
+                  let fam = CTFontDescriptorCopyAttribute(d, kCTFontFamilyNameAttribute) as? String,
+                  !fam.hasPrefix(".")
+            else { continue }
+            families.insert(fam)
         }
         return families.subtracting(bundled).sorted()
             .map { FontFamily(name: $0, bundled: false, ligatures: ligatureFamilies.contains($0)) }
@@ -72,7 +82,25 @@ enum FontLibrary {
 
     /// A font for previews in the Settings window.
     static func previewFont(_ family: String, size: CGFloat) -> NSFont {
+        let key = "\(family)|\(size)" as NSString
+        if let f = previewCache.object(forKey: key) { return f }
         let d = NSFontDescriptor(fontAttributes: [.family: family])
-        return NSFont(descriptor: d, size: size) ?? .monospacedSystemFont(ofSize: size, weight: .regular)
+        let f = NSFont(descriptor: d, size: size) ?? .monospacedSystemFont(ofSize: size, weight: .regular)
+        previewCache.setObject(f, forKey: key)
+        return f
     }
+    private static let previewCache = NSCache<NSString, NSFont>()
+
+    /// Installed families, loaded once in the background.
+    static func loadInstalledMonospaceFamilies(_ completion: @escaping ([FontFamily]) -> Void) {
+        if let cached = installedCache { return completion(cached) }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let list = installedMonospaceFamilies()
+            DispatchQueue.main.async {
+                installedCache = list
+                completion(list)
+            }
+        }
+    }
+    private static var installedCache: [FontFamily]?
 }

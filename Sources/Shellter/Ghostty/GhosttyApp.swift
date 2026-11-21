@@ -46,7 +46,10 @@ final class GhosttyApp {
             return
         }
 
-        FontLibrary.registerBundledFonts()
+        FontLibrary.registerBundledFonts(now: AppearanceSettings.shared.state.fontFamily) {
+            // A font from the user's own Ghostty config may be one of the later ones.
+            GhosttyApp.shared.reloadConfig()
+        }
         guard let cfg = Self.makeConfig() else {
             NSLog("Shellter: ghostty_config_new failed")
             return
