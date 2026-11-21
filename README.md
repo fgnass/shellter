@@ -25,6 +25,7 @@ git submodule update --init
 ./scripts/build-zmx.sh       # builds the bundled zmx (once)
 ./scripts/build.sh           # builds Shellter.app, prints its path
 ./scripts/restart.sh         # builds, quits the running Debug build, starts it again
+./scripts/test.sh            # logic tests (agent detection, quoting, reordering, colors)
 ```
 
 ## Fonts and themes

@@ -92,19 +92,9 @@ extension TerminalView {
         guard !urls.isEmpty else { return }
         let paths = urls.map { Self.keep($0).path }
         log.notice("insert paths: \(paths, privacy: .public)")
-        pasteText(paths.map(Self.shellEscape).joined(separator: " ") + " ")
+        pasteText(paths.map(Shell.escape).joined(separator: " ") + " ")
         window?.makeFirstResponder(self)
         NSApp.activate(ignoringOtherApps: true)
-    }
-
-    /// Characters that the shell would interpret, escaped with a backslash (as Terminal.app does).
-    static func shellEscape(_ s: String) -> String {
-        var out = ""
-        for c in s {
-            if "\\ ()[]{}<>\"'`!#$&;|*?\t~".contains(c) { out.append("\\") }
-            out.append(c)
-        }
-        return out
     }
 
     /// Files in a temporary folder (e.g. the screenshot thumbnail stages its image in

@@ -16,6 +16,8 @@ settings:
 targets:
   Shellter:
     type: application
+    scheme:
+      testTargets: [ShellterTests]
     platform: macOS
     sources:
       - path: Sources/Shellter
@@ -56,3 +58,24 @@ targets:
         SWIFT_OBJC_BRIDGING_HEADER: Sources/Shellter/Shellter-Bridging-Header.h
         OTHER_LDFLAGS: ["-lstdc++"]
         ENABLE_APP_SANDBOX: NO
+
+  # Logic tests. Not hosted in the app: a test host would start a second Shellter with
+  # the real tabs and zmx sessions. The tested files are compiled into the bundle.
+  ShellterTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/ShellterTests
+      - path: Sources/Shellter/Model/Agent.swift
+      - path: Sources/Shellter/Model/AgentSession.swift
+      - path: Sources/Shellter/Model/ProcessInspector.swift
+      - path: Sources/Shellter/Model/PortClassifier.swift
+      - path: Sources/Shellter/Model/Shell.swift
+      - path: Sources/Shellter/Model/Reorder.swift
+      - path: Sources/Shellter/Model/IconResolver.swift
+      - path: Sources/Shellter/UI/SidebarSettings.swift
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.fgnass.shellter.tests
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/Shellter/Shellter-Bridging-Header.h

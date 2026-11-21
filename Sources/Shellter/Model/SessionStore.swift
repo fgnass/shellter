@@ -173,23 +173,16 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
     /// Moves a tab within its project, to the place of `target`.
     /// Dragged down it lands after the target, dragged up before it.
     func move(tab id: UUID, to target: UUID) {
-        guard id != target,
-              let from = sessions.firstIndex(where: { $0.id == id }),
-              let to = sessions.firstIndex(where: { $0.id == target }),
-              sessions[from].projectRoot == sessions[to].projectRoot else { return }
-        let s = sessions.remove(at: from)
-        let index = sessions.firstIndex(where: { $0.id == target })! + (from < to ? 1 : 0)
-        sessions.insert(s, at: index)
+        guard let a = sessions.first(where: { $0.id == id }),
+              let b = sessions.first(where: { $0.id == target }), a.projectRoot == b.projectRoot,
+              let moved = Reorder.move(sessions, id: \.id, item: id, to: target) else { return }
+        sessions = moved
         scheduleSave()
     }
 
     /// Moves all tabs of a project to the place of the project `target`.
     func move(group root: String, to target: String) {
-        let order = groups.map(\.id)
-        guard root != target, let from = order.firstIndex(of: root), let to = order.firstIndex(of: target) else { return }
-        var newOrder = order
-        newOrder.remove(at: from)
-        newOrder.insert(root, at: newOrder.firstIndex(of: target)! + (from < to ? 1 : 0))
+        guard let newOrder = Reorder.move(groups.map(\.id), id: { $0 }, item: root, to: target) else { return }
         let byRoot = Dictionary(grouping: sessions, by: \.projectRoot)
         sessions = newOrder.flatMap { byRoot[$0] ?? [] }
         scheduleSave()

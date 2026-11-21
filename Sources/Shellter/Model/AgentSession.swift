@@ -33,9 +33,9 @@ enum AgentSession {
     /// Command that continues the session in the same place.
     static func resumeCommand(_ agent: Agent, session: String?) -> String {
         switch agent {
-        case .claude: return session.map { "claude --resume \(quote($0))" } ?? "claude --continue"
-        case .codex: return session.map { "codex resume \(quote($0))" } ?? "codex resume --last"
-        case .pi: return session.map { "pi --session \(quote($0))" } ?? "pi --continue"
+        case .claude: return session.map { "claude --resume \(Shell.quote($0))" } ?? "claude --continue"
+        case .codex: return session.map { "codex resume \(Shell.quote($0))" } ?? "codex resume --last"
+        case .pi: return session.map { "pi --session \(Shell.quote($0))" } ?? "pi --continue"
         case .opencode: return "opencode --continue"
         }
     }
@@ -43,9 +43,9 @@ enum AgentSession {
     /// Command that starts a copy of the session that goes its own way, or nil.
     static func forkCommand(_ agent: Agent, session: String?) -> String? {
         switch agent {
-        case .claude: return session.map { "claude --resume \(quote($0)) --fork-session" }
-        case .codex: return session.map { "codex fork \(quote($0))" } ?? "codex fork --last"
-        case .pi: return session.map { "pi --fork \(quote($0))" }
+        case .claude: return session.map { "claude --resume \(Shell.quote($0)) --fork-session" }
+        case .codex: return session.map { "codex fork \(Shell.quote($0))" } ?? "codex fork --last"
+        case .pi: return session.map { "pi --fork \(Shell.quote($0))" }
         case .opencode: return nil
         }
     }
@@ -77,8 +77,4 @@ enum AgentSession {
         }
     }
 
-    static func quote(_ s: String) -> String {
-        if s.range(of: "^[A-Za-z0-9_@%+=:,./-]+$", options: .regularExpression) != nil { return s }
-        return "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
-    }
 }

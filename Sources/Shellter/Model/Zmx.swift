@@ -33,7 +33,7 @@ enum Zmx {
     /// The command that the terminal runs for a tab. Ghostty runs it through a shell.
     static func attachCommand(session: String) -> String? {
         guard let binary else { return nil }
-        return "\(shellQuote(binary)) attach \(session)"
+        return "\(Shell.quote(binary)) attach \(session)"
     }
 
     /// Environment for the zmx client. The daemon and the shell in it inherit it.
@@ -101,7 +101,4 @@ enum Zmx {
         return String(data: data, encoding: .utf8)
     }
 
-    private static func shellQuote(_ s: String) -> String {
-        "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
-    }
 }
