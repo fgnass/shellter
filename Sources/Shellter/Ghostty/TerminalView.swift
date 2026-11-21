@@ -26,9 +26,11 @@ final class TerminalView: NSView {
     }
 
     /// `command` replaces the login shell; `env` adds variables for it.
-    init(workingDirectory: String?, initialInput: String? = nil,
+    /// `frame` should be the final size: the program in the terminal starts with it.
+    init(frame: NSRect = NSRect(x: 0, y: 0, width: 800, height: 600),
+         workingDirectory: String?, initialInput: String? = nil,
          command: String? = nil, env: [String: String] = [:]) {
-        super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        super.init(frame: frame)
         guard let app = GhosttyApp.shared.app else { return }
 
         var cfg = ghostty_surface_config_new()
@@ -65,6 +67,12 @@ final class TerminalView: NSView {
             }
         }
         if surface == nil { NSLog("Shellter: ghostty_surface_new failed") }
+        // Tell libghostty the real size right away. Its default is 800 x 600 points; a zmx
+        // client that attached with that size would make the running program draw narrow.
+        if let surface, frame.width > 0, frame.height > 0 {
+            ghostty_surface_set_size(surface, UInt32(frame.width * cfg.scale_factor),
+                                     UInt32(frame.height * cfg.scale_factor))
+        }
         registerForDrops()
     }
 

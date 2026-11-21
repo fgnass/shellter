@@ -16,6 +16,8 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
 
     /// Called when the selected terminal must be shown.
     var onShow: ((Session) -> Void)?
+    /// Called for each new tab, so the window can create its terminal right away.
+    var onAdd: ((Session) -> Void)?
     /// Called when the last tab closed.
     var onEmpty: (() -> Void)?
 
@@ -98,8 +100,9 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
 
     private func add(_ s: Session) {
         sessions.append(s)
-        let v = s.ensureView()
-        v.eventHandler = self
+        // The window creates the terminal now (hidden, in its final size), so hidden tabs
+        // report bells, titles and progress too.
+        onAdd?(s)
         s.loadDirectoryIcon()
         // A tab that starts to want attention bounces the Dock icon while Shellter is in
         // the background (once, like Terminal.app; it stops when Shellter becomes active).

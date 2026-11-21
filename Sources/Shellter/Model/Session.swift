@@ -48,14 +48,15 @@ final class Session: ObservableObject, Identifiable {
     /// The zmx session that keeps this tab's shell alive (see Zmx).
     var zmxSession: String? { Zmx.isAvailable ? Zmx.sessionName(for: id) : nil }
 
-    func ensureView() -> TerminalView {
+    /// Creates the terminal when the tab is first shown, in its final size (`frame`).
+    func ensureView(frame: NSRect) -> TerminalView {
         if let view { return view }
         let v: TerminalView
         if let name = zmxSession, let command = Zmx.attachCommand(session: name) {
-            v = TerminalView(workingDirectory: cwd, initialInput: initialInput,
+            v = TerminalView(frame: frame, workingDirectory: cwd, initialInput: initialInput,
                              command: command, env: Zmx.environment)
         } else {
-            v = TerminalView(workingDirectory: cwd, initialInput: initialInput)
+            v = TerminalView(frame: frame, workingDirectory: cwd, initialInput: initialInput)
         }
         view = v
         return v

@@ -14,12 +14,17 @@ final class TerminalContainerController: NSViewController {
         view = v
     }
 
+    /// Adds a terminal hidden, unless it is the one on screen.
+    func add(_ terminal: TerminalView) {
+        guard terminal.superview !== view else { return }
+        terminal.frame = view.bounds
+        terminal.autoresizingMask = [.width, .height]
+        view.addSubview(terminal, positioned: .below, relativeTo: searchHost)
+        terminal.setVisible(false)
+    }
+
     func show(_ terminal: TerminalView) {
-        if terminal.superview !== view {
-            terminal.frame = view.bounds
-            terminal.autoresizingMask = [.width, .height]
-            view.addSubview(terminal, positioned: .below, relativeTo: searchHost)
-        }
+        add(terminal)
         for case let t as TerminalView in view.subviews {
             t.setVisible(t === terminal)
         }
@@ -111,6 +116,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
 
         store.onShow = { [weak self] s in self?.show(s) }
+        store.onAdd = { [weak self] s in self?.attach(s) }
         store.$selectedID
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.updateTitle() }
@@ -135,10 +141,21 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     required init?(coder: NSCoder) { fatalError("not supported") }
 
     func show(_ s: Session) {
-        let v = s.ensureView()
-        v.eventHandler = store
-        container.show(v)
+        container.show(terminal(for: s))
         updateTitle()
+    }
+
+    /// Creates the terminal of a new tab hidden in the container, so it starts in the size
+    /// of the visible terminal and follows the window size from then on.
+    private func attach(_ s: Session) {
+        container.add(terminal(for: s))
+    }
+
+    private func terminal(for s: Session) -> TerminalView {
+        window?.layoutIfNeeded()   // the container's real size, also before the window shows
+        let v = s.ensureView(frame: container.view.bounds)
+        v.eventHandler = store
+        return v
     }
 
     func showSelected() {
