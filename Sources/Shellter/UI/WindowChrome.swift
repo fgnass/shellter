@@ -44,6 +44,12 @@ final class WindowChrome: ObservableObject {
         return 0.2126 * rgb.redComponent + 0.7152 * rgb.greenComponent + 0.0722 * rgb.blueComponent
     }
 
+    /// With the macOS sidebar style, a transparent terminal gets the same material
+    /// as the sidebar, tinted with the theme background.
+    func usesMaterial(in window: NSWindow) -> Bool {
+        sidebarStyle == .system && opacity < 1 && !window.styleMask.contains(.fullScreen)
+    }
+
     /// Makes the window see-through when the terminal background is not opaque.
     func apply(to window: NSWindow) {
         window.appearance = appearance
@@ -57,8 +63,10 @@ final class WindowChrome: ObservableObject {
             window.isOpaque = true
             window.backgroundColor = background
         }
+        // The material blurs by itself.
+        let radius = transparent && !usesMaterial(in: window) ? blur : 0
         _ = CGSSetWindowBackgroundBlurRadius(
-            CGSDefaultConnectionForThread(), window.windowNumber, Int32(transparent ? blur : 0))
+            CGSDefaultConnectionForThread(), window.windowNumber, Int32(radius))
         window.invalidateShadow()
     }
 }

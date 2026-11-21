@@ -4,10 +4,28 @@ import SwiftUI
 
 /// Hosts the terminal of the selected tab.
 final class TerminalContainerController: NSViewController {
+    /// The macOS sidebar material behind the terminal. The terminal draws its
+    /// background color over it, with `background-opacity`.
+    private let material: NSVisualEffectView = {
+        let v = NSVisualEffectView()
+        v.material = .sidebar
+        v.blendingMode = .behindWindow
+        v.state = .followsWindowActiveState
+        v.autoresizingMask = [.width, .height]
+        v.isHidden = true
+        return v
+    }()
+
     override func loadView() {
         let v = NSView()
         v.wantsLayer = true
+        material.frame = v.bounds
+        v.addSubview(material)
         view = v
+    }
+
+    func setMaterial(_ on: Bool) {
+        material.isHidden = !on
     }
 
     func show(_ terminal: TerminalView) {
@@ -92,6 +110,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     private func applyChrome() {
         guard let window else { return }
         WindowChrome.shared.apply(to: window)
+        container.setMaterial(WindowChrome.shared.usesMaterial(in: window))
         split.splitView.needsDisplay = true
     }
 
@@ -135,7 +154,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
 /// A divider that fits the terminal colors.
 final class ChromeSplitView: NSSplitView {
     override var dividerColor: NSColor {
-        WindowChrome.shared.isDark ? NSColor(white: 1, alpha: 0.1) : NSColor(white: 0, alpha: 0.12)
+        WindowChrome.shared.isDark ? NSColor(white: 1, alpha: 0.06) : NSColor(white: 0, alpha: 0.12)
     }
 }
 
