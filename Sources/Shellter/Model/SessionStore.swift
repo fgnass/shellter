@@ -205,8 +205,10 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
             pollQueue.async { [weak self, weak s] in
                 let snap = ProcessInspector.snapshot(tty: tty)
                 let fgCwd = fgPID.flatMap { ProcessInspector.cwd(of: $0) }
+                let fgName = fgPID.map { ProcessInspector.name(of: $0) } ?? ""
                 DispatchQueue.main.async {
                     guard let self, let s else { return }
+                    if s.foregroundName != fgName { s.foregroundName = fgName }
                     self.apply(snap, fallbackCwd: fgCwd, to: s)
                 }
             }

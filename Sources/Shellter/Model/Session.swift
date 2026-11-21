@@ -51,10 +51,20 @@ final class Session: ObservableObject, Identifiable {
         view = nil
     }
 
+    /// Name of the foreground process (e.g. "zsh", "claude", "vim").
+    @Published var foregroundName: String = ""
+
     var title: String {
         let t = Self.stripSpinner(rawTitle).trimmingCharacters(in: .whitespaces)
-        if !t.isEmpty { return t }
-        return (cwd as NSString).lastPathComponent
+        if !t.isEmpty && !Self.looksLikePath(t) { return t }
+        // Shells often set the title to the cwd: the sidebar already shows that.
+        return foregroundName.isEmpty ? "shell" : foregroundName
+    }
+
+    static func looksLikePath(_ s: String) -> Bool {
+        if s == "~" { return true }
+        guard !s.contains(" ") else { return false }
+        return s.hasPrefix("/") || s.hasPrefix("~/") || s.hasPrefix("…") || s.hasPrefix("...")
     }
 
     var projectName: String {
