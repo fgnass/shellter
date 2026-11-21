@@ -101,6 +101,16 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
         let v = s.ensureView()
         v.eventHandler = self
         s.loadDirectoryIcon()
+        // A tab that starts to want attention bounces the Dock icon while Shellter is in
+        // the background (once, like Terminal.app; it stops when Shellter becomes active).
+        s.$activity
+            .removeDuplicates()
+            .filter { $0 == .needsInput }
+            .receive(on: DispatchQueue.main)
+            .sink { _ in
+                if !NSApp.isActive { NSApp.requestUserAttention(.informationalRequest) }
+            }
+            .store(in: &bag)
         // Forward session changes so the sidebar refreshes.
         s.objectWillChange
             .receive(on: DispatchQueue.main)
