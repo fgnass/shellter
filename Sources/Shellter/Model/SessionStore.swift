@@ -7,9 +7,19 @@ struct SessionGroup: Identifiable {
     let sessions: [Session]
 }
 
+/// A window of another app in a project, with the tab it belongs to.
+struct ProjectWindow: Identifiable {
+    let link: LinkedWindow
+    let session: Session
+    var id: String { link.id }
+}
+
 /// Owns all tabs, their order, the selection and persistence.
 final class SessionStore: ObservableObject, TerminalEventHandler {
     @Published private(set) var sessions: [Session] = []
+    /// Per tab: apps that its processes started, and windows that show a file of its project.
+    @Published private(set) var appWindows: [UUID: [LinkedWindow]] = [:]
+    @Published private(set) var documentWindows: [UUID: [LinkedWindow]] = [:]
     @Published var selectedID: UUID? {
         didSet { if oldValue != selectedID { selectionDidChange() } }
     }
@@ -136,6 +146,7 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
         // Closing a tab ends its shell. (Quitting Shellter only detaches.)
         if let name = s.zmxSession { Zmx.kill(name) }
         sessions.removeAll { $0.id == s.id }
+        appWindows[s.id] = nil
         if selectedID == s.id {
             let remaining = ordered.filter { $0.id != s.id }
             selectedID = remaining.isEmpty ? nil : remaining[min(idx, remaining.count - 1)].id
@@ -338,16 +349,31 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
     private func pollDocumentWindows() {
         guard LinkedWindows.hasAccess else { return }
         let apps = LinkedWindows.regularApps()
-        let tabs = sessions.map { (id: $0.id, cwd: $0.cwd, hasAgent: $0.agent != nil) }
+        // A file anywhere in the project belongs to it, but the home folder is no project.
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let tabs = sessions.filter { $0.projectRoot != home }
+            .map { (id: $0.id, cwd: $0.projectRoot, hasAgent: $0.agent != nil) }
         pollQueue.async { [weak self] in
             let found = LinkedWindows.assign(LinkedWindows.documentWindows(apps: apps), to: tabs)
             DispatchQueue.main.async {
-                for s in self?.sessions ?? [] {
-                    let links = found[s.id] ?? []
-                    if links != s.documentWindows { s.documentWindows = links }
+                guard let self, found != self.documentWindows else { return }
+                self.documentWindows = found
+            }
+        }
+    }
+
+    /// The windows of other apps in a project: apps first, then files, each once.
+    func windows(of group: SessionGroup) -> [ProjectWindow] {
+        var seen = Set<String>()
+        var result: [ProjectWindow] = []
+        for kind in [appWindows, documentWindows] {
+            for s in group.sessions {
+                for link in kind[s.id] ?? [] where seen.insert(link.id).inserted {
+                    result.append(ProjectWindow(link: link, session: s))
                 }
             }
         }
+        return result
     }
 
     private func inspect(_ s: Session, shellPID: pid_t) {
@@ -377,7 +403,7 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
         let names = snap.pids.compactMap { snap.names[$0] }.filter { !$0.isEmpty }
         if names != s.processNames { s.processNames = names }
         let apps = LinkedWindows.apps(from: snap.apps)
-        if apps != s.appWindows { s.appWindows = apps }
+        if apps != (appWindows[s.id] ?? []) { appWindows[s.id] = apps.isEmpty ? nil : apps }
         if snap.agent != s.agent {
             s.agent = snap.agent
             s.agentSession = snap.agentSession

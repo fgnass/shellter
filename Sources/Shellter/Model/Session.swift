@@ -22,10 +22,6 @@ final class Session: ObservableObject, Identifiable {
     @Published var serverPort: UInt16?
     @Published var dirIcon: NSImage?
     @Published var processNames: [String] = []
-    /// Apps that the tab's processes started, and windows that show a file in its folder.
-    @Published var appWindows: [LinkedWindow] = []
-    @Published var documentWindows: [LinkedWindow] = []
-    var linkedWindows: [LinkedWindow] { appWindows + documentWindows }
     /// The coding agent that runs in this tab, if any.
     @Published var agent: Agent?
     /// The agent's session (ID or file path), to resume or fork it.

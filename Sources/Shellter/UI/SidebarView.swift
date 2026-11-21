@@ -29,10 +29,18 @@ struct SidebarView: View {
                         // sits on it with a marker: the agent icon or, for a shell, a dot.
                         VStack(alignment: .leading, spacing: 0) {
                             header(of: group)
+                            let color = Color(nsColor: group.color(dark: colorScheme == .dark))
                             ForEach(group.sessions) { s in
                                 HStack(spacing: 2) {
-                                    LineMarker(session: s, color: Color(nsColor: group.color(dark: colorScheme == .dark)))
+                                    LineMarker(session: s, color: color)
                                     row(for: s, icon: false)
+                                }
+                                .padding(.leading, 6)
+                            }
+                            ForEach(store.windows(of: group)) { w in
+                                HStack(spacing: 2) {
+                                    PlainLine(color: color)
+                                    windowRow(w)
                                 }
                                 .padding(.leading, 6)
                             }
@@ -94,8 +102,24 @@ struct SidebarView: View {
         return true
     }
 
+    @ViewBuilder
     private func rows(of group: SessionGroup) -> some View {
         ForEach(group.sessions) { s in row(for: s, icon: true) }
+        ForEach(store.windows(of: group)) { w in windowRow(w) }
+    }
+
+    private func windowRow(_ w: ProjectWindow) -> some View {
+        SidebarRow(selected: false) {
+            WindowRow(window: w, condensed: layout.condensedTitles)
+        }
+        .onTapGesture { LinkedWindows.show(w.link) }
+        .contextMenu {
+            Button("Show \(w.link.label)") { LinkedWindows.show(w.link) }
+            if let doc = w.link.document {
+                Button("Reveal in Finder") { NSWorkspace.shared.selectFile(doc, inFileViewerRootedAtPath: "") }
+            }
+            Button("Go to Tab") { store.select(w.session) }
+        }
     }
 
     private func row(for s: Session, icon: Bool) -> some View {
@@ -192,9 +216,6 @@ struct SidebarView: View {
         }
         if let agent = s.agent, AgentSession.forkCommand(agent, session: s.agentSession) != nil {
             Button("Branch \(agent.name) Session") { store.branch(s) }
-        }
-        ForEach(s.linkedWindows) { link in
-            Button("Show \(link.label)") { LinkedWindows.show(link) }
         }
         if let port = s.serverPort ?? s.ports.first {
             Button("Open localhost:\(port)") {
@@ -298,9 +319,6 @@ private struct TabRow: View {
                 }
             }
             Spacer(minLength: 4)
-            ForEach(session.linkedWindows) { link in
-                LinkedWindowButton(link: link)
-            }
             StatusBadge(state: session.activity)
         }
         .padding(.vertical, 2)
@@ -324,20 +342,57 @@ private struct TabRow: View {
     }
 }
 
-/// The icon of an app window that belongs to the tab. A click brings the window to the front.
-private struct LinkedWindowButton: View {
-    let link: LinkedWindow
+/// A window of another app in the project: an app that a tab started (e.g. the browser
+/// of a coding agent) or a file of the project that another app shows.
+private struct WindowRow: View {
+    let window: ProjectWindow
+    var condensed = false
+
+    private var width: Font.Width { condensed ? .condensed : .standard }
 
     var body: some View {
-        Button { LinkedWindows.show(link) } label: {
-            if let icon = link.icon {
-                Image(nsImage: icon).resizable().frame(width: 16, height: 16)
-            } else {
-                Image(systemName: "macwindow").frame(width: 16, height: 16)
+        HStack(spacing: 8) {
+            Group {
+                if let icon = window.link.icon {
+                    Image(nsImage: icon).resizable()
+                } else {
+                    Image(systemName: "macwindow")
+                }
             }
+            .frame(width: 16, height: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 13).width(width))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(subtitle)
+                    .font(.system(size: 10).width(width))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            Spacer(minLength: 4)
         }
-        .buttonStyle(.plain)
-        .help("Show \(link.label)")
+        .padding(.vertical, 2)
+        .help("Show \(window.link.label)")
+    }
+
+    private var title: String {
+        window.link.document.map { ($0 as NSString).lastPathComponent } ?? window.link.appName
+    }
+
+    /// Files: the app. Apps: the tab that started them.
+    private var subtitle: String {
+        window.link.document == nil ? window.session.title : window.link.appName
+    }
+}
+
+/// In the lines layout, the project line runs past the window rows without a marker.
+private struct PlainLine: View {
+    let color: Color
+
+    var body: some View {
+        Rectangle().fill(color).frame(width: 2).frame(maxHeight: .infinity).frame(width: 20)
     }
 }
 
