@@ -68,7 +68,11 @@ final class Session: ObservableObject, Identifiable {
     /// Name of the foreground process (e.g. "zsh", "claude", "vim").
     @Published var foregroundName: String = ""
 
+    /// A title the user gave the tab. It wins over the title from the shell.
+    @Published var customTitle: String?
+
     var title: String {
+        if let customTitle, !customTitle.isEmpty { return customTitle }
         let t = Self.stripSpinner(rawTitle).trimmingCharacters(in: .whitespaces)
         if !t.isEmpty && !Self.looksLikePath(t) { return t }
         // Shells often set the title to the cwd: the sidebar already shows that.
@@ -175,7 +179,12 @@ final class Session: ObservableObject, Identifiable {
         var id: UUID
         var cwd: String
         var title: String
+        var customTitle: String?
+        /// The coding agent that ran in the tab, to resume it after a reboot.
+        var agent: String?
     }
 
-    var saved: Saved { Saved(id: id, cwd: cwd, title: rawTitle) }
+    var saved: Saved {
+        Saved(id: id, cwd: cwd, title: rawTitle, customTitle: customTitle, agent: agent?.rawValue)
+    }
 }

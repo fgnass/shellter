@@ -5,6 +5,8 @@ struct SidebarView: View {
     @ObservedObject var store: SessionStore
     @ObservedObject private var layout = SidebarSettings.shared
     @State private var dropTargeted = false
+    /// The tab or project that a dragged sidebar item is over.
+    @State private var dragTarget: String?
 
     var body: some View {
         // Cards or colored lines show which tabs belong to a project (Settings → Window).
@@ -14,7 +16,7 @@ struct SidebarView: View {
                     switch layout.groupStyle {
                     case .cards:
                         VStack(alignment: .leading, spacing: 1) {
-                            GroupHeader(group: group)
+                            header(of: group)
                             rows(of: group)
                         }
                         .padding(.horizontal, 3)
@@ -24,7 +26,7 @@ struct SidebarView: View {
                         // The line in the project color runs below the project icon. Each tab
                         // sits on it with a marker: the agent icon or, for a shell, a dot.
                         VStack(alignment: .leading, spacing: 0) {
-                            GroupHeader(group: group)
+                            header(of: group)
                             ForEach(group.sessions) { s in
                                 HStack(spacing: 2) {
                                     LineMarker(session: s, color: Color(nsColor: group.color))
@@ -95,16 +97,58 @@ struct SidebarView: View {
     }
 
     private func row(for s: Session, icon: Bool) -> some View {
-        SidebarRow(selected: s.id == store.selectedID) {
+        SidebarRow(selected: s.id == store.selectedID, targeted: dragTarget == "tab:\(s.id)") {
             TabRow(session: s, condensed: layout.condensedTitles, showIcon: icon)
         }
         .onTapGesture { store.select(s) }
         .contextMenu { menu(for: s) }
+        // Drag a tab onto another tab of the same project to reorder.
+        .draggable(SidebarDragItem(tab: s.id))
+        .dropDestination(for: SidebarDragItem.self) { items, _ in
+            guard let id = items.first?.tab else { return false }
+            store.move(tab: id, to: s.id)
+            return true
+        } isTargeted: { over in
+            if over { dragTarget = "tab:\(s.id)" } else if dragTarget == "tab:\(s.id)" { dragTarget = nil }
+        }
+    }
+
+    /// Drag a project header onto another one to reorder the projects.
+    private func header(of group: SessionGroup) -> some View {
+        GroupHeader(group: group)
+            .background(
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(Color.accentColor.opacity(dragTarget == "group:\(group.id)" ? 0.2 : 0))
+            )
+            .contentShape(Rectangle())
+            .draggable(SidebarDragItem(group: group.id))
+            .dropDestination(for: SidebarDragItem.self) { items, _ in
+                guard let root = items.first?.group else { return false }
+                store.move(group: root, to: group.id)
+                return true
+            } isTargeted: { over in
+                if over { dragTarget = "group:\(group.id)" } else if dragTarget == "group:\(group.id)" { dragTarget = nil }
+            }
+    }
+
+    private func rename(_ s: Session) {
+        let alert = NSAlert()
+        alert.messageText = "Rename Tab"
+        alert.informativeText = "Leave the name empty to use the title from the shell again."
+        let field = NSTextField(string: s.customTitle ?? s.title)
+        field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        store.rename(s, to: field.stringValue)
     }
 
     @ViewBuilder
     private func menu(for s: Session) -> some View {
         Button("New Tab Here") { store.newTab(cwd: s.cwd) }
+        Button("Rename Tab…") { rename(s) }
         if let port = s.serverPort ?? s.ports.first {
             Button("Open localhost:\(port)") {
                 NSWorkspace.shared.open(URL(string: "http://localhost:\(port)/")!)
@@ -146,9 +190,25 @@ private struct GroupHeader: View {
     }
 }
 
-/// A row with hover and selection highlight.
+/// A tab or a project, dragged inside the sidebar to reorder it. Its own type keeps it
+/// apart from folders dropped from the Finder.
+struct SidebarDragItem: Codable, Transferable {
+    var tab: UUID?
+    var group: String?
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .shellterSidebarItem)
+    }
+}
+
+extension UTType {
+    static let shellterSidebarItem = UTType(exportedAs: "com.fgnass.shellter.sidebar-item")
+}
+
+/// A row with hover, selection and drop-target highlight.
 private struct SidebarRow<Content: View>: View {
     let selected: Bool
+    var targeted = false
     @ViewBuilder let content: () -> Content
     @State private var hovered = false
 
@@ -159,7 +219,8 @@ private struct SidebarRow<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 7)
-                    .fill(Color.primary.opacity(selected ? 0.11 : (hovered ? 0.05 : 0)))
+                    .fill(targeted ? Color.accentColor.opacity(0.2)
+                          : Color.primary.opacity(selected ? 0.11 : (hovered ? 0.05 : 0)))
             )
             .contentShape(Rectangle())
             .onHover { hovered = $0 }
