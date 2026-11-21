@@ -160,6 +160,7 @@ struct WindowSettingsView: View {
     @ObservedObject private var settings = AppearanceSettings.shared
     @ObservedObject private var layout = SidebarSettings.shared
     @ObservedObject private var chrome = WindowChrome.shared
+    @State private var axAccess = LinkedWindows.hasAccess
 
     private var opacity: Double { settings.state.backgroundOpacity ?? chrome.opacity }
     private var blur: Int { settings.state.backgroundBlur ?? chrome.blur }
@@ -189,6 +190,21 @@ struct WindowSettingsView: View {
                 Text("Condensed titles fit about 20 % more text in a row.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                LabeledContent("Windows of other apps") {
+                    if axAccess {
+                        Text("On").foregroundStyle(.secondary)
+                    } else {
+                        Button("Allow Access…") { LinkedWindows.requestAccess() }
+                    }
+                }
+                Text("A tab shows the icons of apps that its programs started (e.g. a browser of "
+                     + "a coding agent). With Accessibility access, it also shows windows of files "
+                     + "in its folder. A click brings the window to the front.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+                if axAccess != LinkedWindows.hasAccess { axAccess = LinkedWindows.hasAccess }
             }
             Section("Transparency") {
                 LabeledContent("Background opacity") {
