@@ -28,6 +28,26 @@
 	<true/>
 	<key>NSSupportsAutomaticGraphicsSwitching</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>A program in Shellter wants to use the microphone.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>A program in Shellter wants to use the camera.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>A program in Shellter wants to control other apps.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>A program in Shellter wants to use Bluetooth.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>A program in Shellter wants to access your calendars.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>A program in Shellter wants to access your contacts.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>A program in Shellter wants to access your reminders.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>A program in Shellter wants to access your photos.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>A program in Shellter wants to use your location.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>A program in Shellter wants to use speech recognition.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

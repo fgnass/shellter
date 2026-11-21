@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowController: MainWindowController?
 
     static func main() {
+        LaunchEnvironment.clean()
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate
