@@ -157,6 +157,17 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
 
     func select(_ s: Session) { selectedID = s.id }
 
+    /// Opens a new tab next to `s` with a fork of its agent session, to try something
+    /// else from the same point. Returns false if the tab has no agent that can fork.
+    @discardableResult
+    func branch(_ s: Session) -> Bool {
+        guard let agent = s.agent,
+              let command = AgentSession.forkCommand(agent, session: s.agentSession) else { return false }
+        selectedID = s.id
+        newTab(cwd: s.cwd, input: command + "\n")
+        return true
+    }
+
     // MARK: Organize
 
     /// Moves a tab within its project, to the place of `target`.
@@ -301,7 +312,8 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
             guard s.zmxSession == nil, let tty = s.view?.ttyName else { continue }
             let fgPID = s.view?.foregroundPID
             pollQueue.async { [weak self, weak s] in
-                let snap = ProcessInspector.snapshot(tty: tty)
+                var snap = ProcessInspector.snapshot(tty: tty)
+                snap.agentSession = Self.agentSession(in: snap)
                 let fgCwd = fgPID.flatMap { ProcessInspector.cwd(of: $0) }
                 let fgName = fgPID.map { ProcessInspector.name(of: $0) } ?? ""
                 DispatchQueue.main.async {
@@ -316,7 +328,8 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
     private func inspect(_ s: Session, shellPID: pid_t) {
         pollQueue.async { [weak self, weak s] in
             guard let term = ProcessInspector.terminal(of: shellPID) else { return }
-            let snap = ProcessInspector.snapshot(dev: term.dev)
+            var snap = ProcessInspector.snapshot(dev: term.dev)
+            snap.agentSession = Self.agentSession(in: snap)
             let fg = term.foreground > 0 ? term.foreground : shellPID
             let fgCwd = ProcessInspector.cwd(of: fg)
             let fgName = ProcessInspector.name(of: fg)
@@ -328,10 +341,24 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
         }
     }
 
+    /// Runs on the poll queue: reads session files of the agent.
+    private static func agentSession(in snap: ProcessInspector.Snapshot) -> String? {
+        guard let agent = snap.agent, let pid = snap.agentPIDs.first else { return nil }
+        let cwd = ProcessInspector.cwd(of: pid) ?? FileManager.default.homeDirectoryForCurrentUser.path
+        return AgentSession.current(agent, pids: snap.agentPIDs, cwd: cwd)
+    }
+
     private func apply(_ snap: ProcessInspector.Snapshot, fallbackCwd: String?, to s: Session) {
         let names = snap.pids.compactMap { snap.names[$0] }.filter { !$0.isEmpty }
         if names != s.processNames { s.processNames = names }
-        if snap.agent != s.agent { s.agent = snap.agent }
+        if snap.agent != s.agent {
+            s.agent = snap.agent
+            s.agentSession = snap.agentSession
+            scheduleSave()
+        } else if let id = snap.agentSession, id != s.agentSession {
+            s.agentSession = id   // e.g. /clear or /resume inside the agent
+            scheduleSave()
+        }
         // Without shell integration there is no OSC 7; use the process cwd instead.
         if let fallbackCwd, s.rawTitle.isEmpty || s.cwd == FileManager.default.homeDirectoryForCurrentUser.path {
             s.setCwd(fallbackCwd)
@@ -390,9 +417,19 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
     private func restore() {
         guard let data = try? Data(contentsOf: Self.stateURL),
               let state = try? JSONDecoder().decode(State.self, from: data) else { return }
+        // Shells that still run in zmx come back as they were. Where the shell is gone
+        // (after a reboot, or without zmx), start the agent of the tab again where it was.
+        let alive = Zmx.isAvailable ? Set(Zmx.list().keys) : []
         for saved in state.sessions {
             let s = Session(id: saved.id, cwd: saved.cwd, title: saved.title)
             s.customTitle = saved.customTitle
+            if let agent = saved.agent.flatMap(Agent.init(rawValue:)) {
+                s.agent = agent
+                s.agentSession = saved.agentSession
+                if s.zmxSession.map({ !alive.contains($0) }) ?? true {
+                    s.initialInput = AgentSession.resumeCommand(agent, session: saved.agentSession) + "\n"
+                }
+            }
             add(s)
         }
         selectedID = sessions.contains { $0.id == state.selected } ? state.selected : sessions.first?.id

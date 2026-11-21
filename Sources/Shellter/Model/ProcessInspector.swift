@@ -9,6 +9,10 @@ enum ProcessInspector {
         var ports: [UInt16] = []          // TCP ports in LISTEN state, sorted
         var portOwners: [UInt16: pid_t] = [:]
         var agent: Agent?
+        /// All processes of the agent (e.g. a node wrapper and its native child).
+        var agentPIDs: [pid_t] = []
+        /// The agent's session (ID or file), see AgentSession. Filled by the caller.
+        var agentSession: String?
     }
 
     /// All processes whose controlling terminal is `tty` (e.g. "/dev/ttys003").
@@ -39,8 +43,10 @@ enum ProcessInspector {
                   info.e_tdev == dev else { continue }
             snap.pids.append(pid)
             snap.names[pid] = name(of: pid)
-            if snap.agent == nil {
-                snap.agent = Agent.detect(path: Self.path(of: pid), args: arguments(of: pid))
+            if let agent = Agent.detect(path: Self.path(of: pid), args: arguments(of: pid)),
+               snap.agent == nil || snap.agent == agent {
+                snap.agent = agent
+                snap.agentPIDs.append(pid)
             }
             for port in listeningPorts(of: pid) {
                 ports.insert(port)
@@ -64,6 +70,27 @@ enum ProcessInspector {
         var buf = [CChar](repeating: 0, count: 256)
         let n = proc_name(pid, &buf, UInt32(buf.count))
         return n > 0 ? String(cString: buf) : ""
+    }
+
+    /// Paths of the files a process has open.
+    static func openFiles(of pid: pid_t) -> [String] {
+        let bufSize = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nil, 0)
+        guard bufSize > 0 else { return [] }
+        let fdSize = MemoryLayout<proc_fdinfo>.stride
+        var fds = [proc_fdinfo](repeating: proc_fdinfo(), count: Int(bufSize) / fdSize + 8)
+        let used = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, &fds, Int32(fds.count * fdSize))
+        guard used > 0 else { return [] }
+        var paths: [String] = []
+        for fd in fds.prefix(Int(used) / fdSize) where fd.proc_fdtype == PROX_FDTYPE_VNODE {
+            var info = vnode_fdinfowithpath()
+            let size = Int32(MemoryLayout<vnode_fdinfowithpath>.size)
+            guard proc_pidfdinfo(pid, fd.proc_fd, PROC_PIDFDVNODEPATHINFO, &info, size) == size else { continue }
+            let path = withUnsafePointer(to: &info.pvip.vip_path) {
+                $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) { String(cString: $0) }
+            }
+            if !path.isEmpty { paths.append(path) }
+        }
+        return paths
     }
 
     /// The path of the executable.

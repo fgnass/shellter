@@ -80,6 +80,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: Actions
 
     @objc func newTab(_ sender: Any?) { store.newTab() }
+    @objc func branchSession(_ sender: Any?) {
+        guard let s = store.selected, store.branch(s) else { NSSound.beep(); return }
+    }
     @objc func find(_ sender: Any?) { store.selected?.view?.startSearch() }
     @objc func findNext(_ sender: Any?) { store.selected?.view?.searchNext() }
     @objc func findPrevious(_ sender: Any?) { store.selected?.view?.searchPrevious() }
@@ -126,6 +129,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         submenu("Shell", [
             item("New Tab", #selector(newTab(_:)), "t", target: self),
             item("Close Tab", #selector(closeTab(_:)), "w", target: self),
+            .separator(),
+            item("Branch Session", #selector(branchSession(_:)), "d", [.command, .shift], target: self),
         ])
 
         submenu("Edit", [

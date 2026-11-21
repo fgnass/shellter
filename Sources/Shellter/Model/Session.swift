@@ -24,6 +24,8 @@ final class Session: ObservableObject, Identifiable {
     @Published var processNames: [String] = []
     /// The coding agent that runs in this tab, if any.
     @Published var agent: Agent?
+    /// The agent's session (ID or file path), to resume or fork it.
+    var agentSession: String?
 
     /// Created on first display, so restored tabs start their shell only when needed.
     private(set) var view: TerminalView?
@@ -180,11 +182,13 @@ final class Session: ObservableObject, Identifiable {
         var cwd: String
         var title: String
         var customTitle: String?
-        /// The coding agent that ran in the tab, to resume it after a reboot.
+        /// The coding agent that ran in the tab and its session, to resume it after a reboot.
         var agent: String?
+        var agentSession: String?
     }
 
     var saved: Saved {
-        Saved(id: id, cwd: cwd, title: rawTitle, customTitle: customTitle, agent: agent?.rawValue)
+        Saved(id: id, cwd: cwd, title: rawTitle, customTitle: customTitle,
+              agent: agent?.rawValue, agentSession: agentSession)
     }
 }

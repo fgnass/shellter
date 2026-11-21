@@ -149,6 +149,9 @@ struct SidebarView: View {
     private func menu(for s: Session) -> some View {
         Button("New Tab Here") { store.newTab(cwd: s.cwd) }
         Button("Rename Tab…") { rename(s) }
+        if let agent = s.agent, AgentSession.forkCommand(agent, session: s.agentSession) != nil {
+            Button("Branch \(agent.name) Session") { store.branch(s) }
+        }
         if let port = s.serverPort ?? s.ports.first {
             Button("Open localhost:\(port)") {
                 NSWorkspace.shared.open(URL(string: "http://localhost:\(port)/")!)
