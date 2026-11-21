@@ -160,6 +160,16 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
 
     func select(_ s: Session) { selectedID = s.id }
 
+    /// Opens a new tab next to `s` (in `cwd`, default: the directory of `s`) with a fresh
+    /// session of `agent` (default: the agent of `s`).
+    @discardableResult
+    func newAgentSession(next s: Session, agent: Agent? = nil, cwd: String? = nil) -> Bool {
+        guard let agent = agent ?? s.agent else { return false }
+        selectedID = s.id
+        newTab(cwd: cwd ?? s.cwd, input: agent.command + "\n")
+        return true
+    }
+
     /// Opens a new tab next to `s` with a fork of its agent session, to try something
     /// else from the same point. Returns false if the tab has no agent that can fork.
     @discardableResult

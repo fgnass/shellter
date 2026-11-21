@@ -13,6 +13,16 @@ enum Agent: String, Equatable, CaseIterable {
         }
     }
 
+    /// The command that starts a fresh session.
+    var command: String {
+        switch self {
+        case .claude: return "claude"
+        case .codex: return "codex"
+        case .opencode: return "opencode"
+        case .pi: return "pi"
+        }
+    }
+
     /// The agent's logo (lobe-icons, see Resources/AgentIcons), as a template image to tint.
     var icon: NSImage? { Self.icons[self] ?? nil }
 
