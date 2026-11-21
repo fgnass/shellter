@@ -193,6 +193,9 @@ struct SidebarView: View {
         if let agent = s.agent, AgentSession.forkCommand(agent, session: s.agentSession) != nil {
             Button("Branch \(agent.name) Session") { store.branch(s) }
         }
+        ForEach(s.linkedWindows) { link in
+            Button("Show \(link.label)") { LinkedWindows.show(link) }
+        }
         if let port = s.serverPort ?? s.ports.first {
             Button("Open localhost:\(port)") {
                 NSWorkspace.shared.open(URL(string: "http://localhost:\(port)/")!)
@@ -295,6 +298,9 @@ private struct TabRow: View {
                 }
             }
             Spacer(minLength: 4)
+            ForEach(session.linkedWindows) { link in
+                LinkedWindowButton(link: link)
+            }
             StatusBadge(state: session.activity)
         }
         .padding(.vertical, 2)
@@ -315,6 +321,23 @@ private struct TabRow: View {
         let root = session.projectRoot, cwd = session.cwd
         guard cwd != root, cwd.hasPrefix(root + "/") else { return "" }
         return String(cwd.dropFirst(root.count + 1))
+    }
+}
+
+/// The icon of an app window that belongs to the tab. A click brings the window to the front.
+private struct LinkedWindowButton: View {
+    let link: LinkedWindow
+
+    var body: some View {
+        Button { LinkedWindows.show(link) } label: {
+            if let icon = link.icon {
+                Image(nsImage: icon).resizable().frame(width: 16, height: 16)
+            } else {
+                Image(systemName: "macwindow").frame(width: 16, height: 16)
+            }
+        }
+        .buttonStyle(.plain)
+        .help("Show \(link.label)")
     }
 }
 

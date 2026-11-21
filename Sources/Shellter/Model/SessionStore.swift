@@ -312,6 +312,7 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
                 }
             }
         }
+        pollDocumentWindows()
         for s in sessions {
             // Spinner ticks stop without an event; re-evaluate the state.
             if s.recompute() && !isVisible(s) { s.requestAttention() }
@@ -328,6 +329,22 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
                     guard let self, let s else { return }
                     if s.foregroundName != fgName { s.foregroundName = fgName }
                     self.apply(snap, fallbackCwd: fgCwd, to: s)
+                }
+            }
+        }
+    }
+
+    /// Windows of other apps that show a file in a tab's folder (needs Accessibility).
+    private func pollDocumentWindows() {
+        guard LinkedWindows.hasAccess else { return }
+        let apps = LinkedWindows.regularApps()
+        let tabs = sessions.map { (id: $0.id, cwd: $0.cwd, hasAgent: $0.agent != nil) }
+        pollQueue.async { [weak self] in
+            let found = LinkedWindows.assign(LinkedWindows.documentWindows(apps: apps), to: tabs)
+            DispatchQueue.main.async {
+                for s in self?.sessions ?? [] {
+                    let links = found[s.id] ?? []
+                    if links != s.documentWindows { s.documentWindows = links }
                 }
             }
         }
@@ -359,6 +376,8 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
     private func apply(_ snap: ProcessInspector.Snapshot, fallbackCwd: String?, to s: Session) {
         let names = snap.pids.compactMap { snap.names[$0] }.filter { !$0.isEmpty }
         if names != s.processNames { s.processNames = names }
+        let apps = LinkedWindows.apps(from: snap.apps)
+        if apps != s.appWindows { s.appWindows = apps }
         if snap.agent != s.agent {
             s.agent = snap.agent
             s.agentSession = snap.agentSession
