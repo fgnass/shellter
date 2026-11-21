@@ -155,6 +155,15 @@ struct SidebarView: View {
             Button("Custom…") { projectColors.showColorPanel(for: group.id) }
         }
         Button("New Tab Here") { store.newTab(cwd: group.id) }
+        // A fresh session of each agent that already runs in the project, in its root.
+        let agents = Agent.allCases.filter { a in group.sessions.contains { $0.agent == a } }
+        if let last = group.sessions.last {
+            ForEach(agents, id: \.self) { agent in
+                Button("New \(agent.name) Session") {
+                    store.newAgentSession(next: last, agent: agent, cwd: group.id)
+                }
+            }
+        }
         Button("Reveal in Finder") {
             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: group.id)
         }
@@ -178,6 +187,9 @@ struct SidebarView: View {
     private func menu(for s: Session) -> some View {
         Button("New Tab Here") { store.newTab(cwd: s.cwd) }
         Button("Rename Tab…") { rename(s) }
+        if let agent = s.agent {
+            Button("New \(agent.name) Session") { store.newAgentSession(next: s) }
+        }
         if let agent = s.agent, AgentSession.forkCommand(agent, session: s.agentSession) != nil {
             Button("Branch \(agent.name) Session") { store.branch(s) }
         }

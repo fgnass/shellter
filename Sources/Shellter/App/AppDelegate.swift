@@ -80,6 +80,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: Actions
 
     @objc func newTab(_ sender: Any?) { store.newTab() }
+    @objc func newAgentSession(_ sender: Any?) {
+        guard let s = store.selected, store.newAgentSession(next: s) else { NSSound.beep(); return }
+    }
     @objc func branchSession(_ sender: Any?) {
         guard let s = store.selected, store.branch(s) else { NSSound.beep(); return }
     }
@@ -130,6 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item("New Tab", #selector(newTab(_:)), "t", target: self),
             item("Close Tab", #selector(closeTab(_:)), "w", target: self),
             .separator(),
+            item("New Agent Session", #selector(newAgentSession(_:)), "t", [.command, .option], target: self),
             item("Branch Session", #selector(branchSession(_:)), "d", [.command, .shift], target: self),
         ])
 
