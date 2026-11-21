@@ -36,6 +36,9 @@ Settings (⌘,) has a font list and a theme list with a live preview.
   (`.itermcolors`, VS Code theme `.json`, Ghostty theme files).
 - "Same as VS Code" follows the editor's `workbench.colorTheme` (and the
   preferred light/dark themes when `window.autoDetectColorScheme` is on).
+- Window: the sidebar uses the terminal background color (or the translucent
+  macOS sidebar material). Background opacity and blur make the window
+  see-through, like Terminal.app (`background-opacity`, `background-blur`).
 
 ## Configuration
 

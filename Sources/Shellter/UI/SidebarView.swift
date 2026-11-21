@@ -21,6 +21,8 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
+        .background(SidebarBackground())
         .focusable(false)
         .safeAreaInset(edge: .bottom) {
             HStack {

@@ -34,8 +34,14 @@ final class TerminalContainerController: NSViewController {
 
 final class MainWindowController: NSWindowController, NSWindowDelegate {
     let store: SessionStore
-    private let split = NSSplitViewController()
+    private let split: NSSplitViewController = {
+        let c = NSSplitViewController()
+        c.splitView = ChromeSplitView()
+        c.splitView.isVertical = true
+        return c
+    }()
     private let container = TerminalContainerController()
+    private var sidebarItem: NSSplitViewItem!
     private var bag = Set<AnyCancellable>()
 
     init(store: SessionStore) {
@@ -52,7 +58,10 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         window.delegate = self
 
         let sidebar = NSHostingController(rootView: SidebarView(store: store))
-        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebar)
+        // A plain item, not a sidebar item: the sidebar item adds the system material,
+        // and Shellter draws its own background (see SidebarBackground).
+        let sidebarItem = NSSplitViewItem(viewController: sidebar)
+        self.sidebarItem = sidebarItem
         sidebarItem.minimumThickness = 180
         sidebarItem.maximumThickness = 400
         sidebarItem.canCollapse = true
@@ -60,6 +69,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         split.addSplitViewItem(sidebarItem)
         split.addSplitViewItem(contentItem)
         split.splitView.autosaveName = "ShellterSplit"
+        split.splitView.dividerStyle = .thin
         window.contentViewController = split
         window.minSize = NSSize(width: 600, height: 400)
         if !window.setFrameUsingName("ShellterMain") || window.frame.width < 600 {
@@ -72,7 +82,21 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.updateTitle() }
             .store(in: &bag)
+        WindowChrome.shared.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.applyChrome() }
+            .store(in: &bag)
+        applyChrome()
     }
+
+    private func applyChrome() {
+        guard let window else { return }
+        WindowChrome.shared.apply(to: window)
+        split.splitView.needsDisplay = true
+    }
+
+    func windowDidEnterFullScreen(_ notification: Notification) { applyChrome() }
+    func windowDidExitFullScreen(_ notification: Notification) { applyChrome() }
 
     required init?(coder: NSCoder) { fatalError("not supported") }
 
@@ -92,7 +116,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc func toggleSidebar(_ sender: Any?) {
-        split.toggleSidebar(sender)
+        sidebarItem.animator().isCollapsed.toggle()
     }
 
     func windowDidBecomeKey(_ notification: Notification) {
@@ -105,6 +129,13 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     func windowDidResignKey(_ notification: Notification) {
         GhosttyApp.shared.setFocus(false)
+    }
+}
+
+/// A divider that fits the terminal colors.
+final class ChromeSplitView: NSSplitView {
+    override var dividerColor: NSColor {
+        WindowChrome.shared.isDark ? NSColor(white: 1, alpha: 0.1) : NSColor(white: 0, alpha: 0.12)
     }
 }
 

@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        _ = AppearanceSettings.shared   // writes appearance.config before libghostty reads it
         _ = GhosttyApp.shared
         AppearanceSettings.shared.observeSystemAppearance()
         AppearanceSettings.shared.start()

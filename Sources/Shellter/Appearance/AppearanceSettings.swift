@@ -15,6 +15,18 @@ final class AppearanceSettings: ObservableObject {
         var darkThemeID: String?
         var lightThemeID: String?
         var separateLightTheme = false
+        /// `background-opacity`, nil: Ghostty config or 1.
+        var backgroundOpacity: Double?
+        /// `background-blur` radius, nil: Ghostty config or none.
+        var backgroundBlur: Int?
+        /// nil: the sidebar uses the terminal colors.
+        var sidebarStyle: SidebarStyle?
+    }
+
+    enum SidebarStyle: String, Codable, CaseIterable, Identifiable {
+        case terminal, system
+        var id: String { rawValue }
+        var label: String { self == .terminal ? "Terminal colors" : "macOS sidebar" }
     }
 
     @Published var state = State() {
@@ -39,8 +51,10 @@ final class AppearanceSettings: ObservableObject {
     private init() {
         if let data = try? Data(contentsOf: Self.stateURL),
            let s = try? JSONDecoder().decode(State.self, from: data) {
-            state = s
+            _state = Published(initialValue: s)   // no didSet, no reload
         }
+        // Write the file again: an older version of Shellter may have written it.
+        writeConfig()
     }
 
     /// Starts watching the followed editor's settings.
@@ -52,7 +66,7 @@ final class AppearanceSettings: ObservableObject {
         ) { [weak self] _ in
             guard let data = try? Data(contentsOf: Self.stateURL),
                   let s = try? JSONDecoder().decode(State.self, from: data) else { return }
-            self?.state = s
+            if self?.state == s { self?.apply() } else { self?.state = s }
         }
         #endif
         watchTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
@@ -83,6 +97,12 @@ final class AppearanceSettings: ObservableObject {
         }
         if !state.ligatures {
             lines += ["font-feature = -calt", "font-feature = -liga", "font-feature = -dlig"]
+        }
+        if let opacity = state.backgroundOpacity {
+            lines.append("background-opacity = \(opacity)")
+        }
+        if let blur = state.backgroundBlur {
+            lines.append("background-blur = \(blur)")
         }
         if let value = themeConfigValue() {
             lines.append("theme = \(value)")

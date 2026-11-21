@@ -37,6 +37,8 @@ final class GhosttyApp {
 
     private(set) var app: ghostty_app_t?
     private(set) var config: ghostty_config_t?
+    /// The config as libghostty applies it (light/dark conditions resolved).
+    private var liveConfig: ghostty_config_t?
 
     private init() {
         if ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv) != GHOSTTY_SUCCESS {
@@ -128,13 +130,36 @@ final class GhosttyApp {
         ghostty_app_set_color_scheme(app, dark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT)
     }
 
+    /// Applies the current config again (after a light/dark change).
+    private func softReload() {
+        guard let app, let config else { return }
+        ghostty_app_update_config(app, config)
+    }
+
+    private func get<T>(_ key: String, _ value: inout T) -> Bool {
+        guard let cfg = liveConfig ?? config else { return false }
+        return ghostty_config_get(cfg, &value, key, UInt(key.utf8.count))
+    }
+
     /// The terminal background color of the current config.
     var backgroundColor: NSColor? {
-        guard let config else { return nil }
         var c = ghostty_config_color_s()
-        let key = "background"
-        guard ghostty_config_get(config, &c, key, UInt(key.utf8.count)) else { return nil }
+        guard get("background", &c) else { return nil }
         return NSColor(srgbRed: CGFloat(c.r) / 255, green: CGFloat(c.g) / 255, blue: CGFloat(c.b) / 255, alpha: 1)
+    }
+
+    /// `background-opacity`, 0…1.
+    var backgroundOpacity: Double {
+        var v: Double = 1
+        _ = get("background-opacity", &v)
+        return min(max(v, 0), 1)
+    }
+
+    /// `background-blur` as a radius (0: no blur).
+    var backgroundBlur: Int {
+        var v: Int16 = 0
+        _ = get("background-blur", &v)
+        return max(Int(v), 0)
     }
 
     func tick() {
@@ -154,6 +179,20 @@ final class GhosttyApp {
         switch action.tag {
         case GHOSTTY_ACTION_QUIT:
             DispatchQueue.main.async { NSApp.terminate(nil) }
+            return true
+        case GHOSTTY_ACTION_RELOAD_CONFIG:
+            // Soft: the light/dark scheme changed, apply the same files again.
+            let soft = action.action.reload_config.soft
+            DispatchQueue.main.async { soft ? self.softReload() : self.reloadConfig() }
+            return true
+        case GHOSTTY_ACTION_CONFIG_CHANGE where target.tag == GHOSTTY_TARGET_APP:
+            guard let clone = ghostty_config_clone(action.action.config_change.config) else { return true }
+            let apply = {
+                if let old = self.liveConfig { ghostty_config_free(old) }
+                self.liveConfig = clone
+                NotificationCenter.default.post(name: .ghosttyConfigDidChange, object: nil)
+            }
+            if Thread.isMainThread { apply() } else { DispatchQueue.main.async(execute: apply) }
             return true
         default:
             break

@@ -37,6 +37,9 @@ struct SettingsView: View {
             ThemeSettingsView()
                 .tabItem { Label("Theme", systemImage: "paintpalette") }
                 .tag("theme")
+            WindowSettingsView()
+                .tabItem { Label("Window", systemImage: "macwindow") }
+                .tag("window")
         }
         .padding(16)
     }
@@ -152,6 +155,64 @@ struct FontSettingsView: View {
             }
         }
         .tag(f.name)
+    }
+}
+
+// MARK: - Window
+
+struct WindowSettingsView: View {
+    @ObservedObject private var settings = AppearanceSettings.shared
+    @ObservedObject private var chrome = WindowChrome.shared
+
+    private var opacity: Double { settings.state.backgroundOpacity ?? chrome.opacity }
+    private var blur: Int { settings.state.backgroundBlur ?? chrome.blur }
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Sidebar", selection: Binding(
+                    get: { settings.state.sidebarStyle ?? .terminal },
+                    set: { settings.state.sidebarStyle = $0 == .terminal ? nil : $0 }
+                )) {
+                    ForEach(AppearanceSettings.SidebarStyle.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.radioGroup)
+                Text("Terminal colors: the sidebar has the background color of the theme. "
+                     + "macOS sidebar: the translucent system sidebar.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Section("Transparency") {
+                LabeledContent("Background opacity") {
+                    HStack {
+                        Slider(value: Binding(
+                            get: { opacity },
+                            set: { settings.state.backgroundOpacity = ($0 * 100).rounded() / 100 }
+                        ), in: 0.3...1)
+                        Text("\(Int((opacity * 100).rounded())) %")
+                            .monospacedDigit()
+                            .frame(width: 44, alignment: .trailing)
+                    }
+                }
+                LabeledContent("Blur") {
+                    HStack {
+                        Slider(value: Binding(
+                            get: { Double(blur) },
+                            set: { settings.state.backgroundBlur = Int($0.rounded()) }
+                        ), in: 0...60)
+                        Text("\(blur)")
+                            .monospacedDigit()
+                            .frame(width: 44, alignment: .trailing)
+                    }
+                }
+                .disabled(opacity >= 1)
+                Text("The desktop and other windows show through the terminal and the sidebar. "
+                     + "Blur makes text easier to read. Full screen is always opaque.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 
