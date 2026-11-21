@@ -30,16 +30,19 @@ struct SidebarView: View {
                         VStack(alignment: .leading, spacing: 0) {
                             header(of: group)
                             let color = Color(nsColor: group.color(dark: colorScheme == .dark))
+                            let windows = store.windows(of: group)
+                            // The line ends at the marker of the last entry.
+                            let lastTab = windows.isEmpty ? group.sessions.last?.id : nil
                             ForEach(group.sessions) { s in
                                 HStack(spacing: 2) {
-                                    LineMarker(session: s, color: color)
+                                    LineMarker(session: s, color: color, last: s.id == lastTab)
                                     row(for: s, icon: false)
                                 }
                                 .padding(.leading, 6)
                             }
-                            ForEach(store.windows(of: group)) { w in
+                            ForEach(windows) { w in
                                 HStack(spacing: 2) {
-                                    WindowMarker(link: w.link, color: color)
+                                    WindowMarker(link: w.link, color: color, last: w.id == windows.last?.id)
                                     windowRow(w, icon: false)
                                 }
                                 .padding(.leading, 6)
@@ -400,12 +403,13 @@ struct WindowIcon: View {
 private struct WindowMarker: View {
     let link: LinkedWindow
     let color: Color
+    var last = false
 
     var body: some View {
         VStack(spacing: 0) {
             segment
             WindowIcon(link: link, size: 16, tint: color).padding(.vertical, 2)
-            segment
+            segment.opacity(last ? 0 : 1)
         }
         .frame(width: 20)
     }
@@ -498,6 +502,7 @@ private struct TabIcon: View {
 private struct LineMarker: View {
     @ObservedObject var session: Session
     let color: Color
+    var last = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -510,7 +515,7 @@ private struct LineMarker: View {
                 }
             }
             .padding(.vertical, 3)
-            segment
+            segment.opacity(last ? 0 : 1)
         }
         .frame(width: 20)
     }
