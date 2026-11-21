@@ -197,9 +197,9 @@ struct WindowSettingsView: View {
                         Button("Allow Access…") { LinkedWindows.requestAccess() }
                     }
                 }
-                Text("A tab shows the icons of apps that its programs started (e.g. a browser of "
-                     + "a coding agent). With Accessibility access, it also shows windows of files "
-                     + "in its folder. A click brings the window to the front.")
+                Text("Below its tabs, a project lists the apps that its programs started (e.g. the "
+                     + "browser of a coding agent). With Accessibility access, it also lists windows "
+                     + "that show files of the project. A click brings the window to the front.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
