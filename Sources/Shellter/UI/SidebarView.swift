@@ -376,13 +376,20 @@ private struct WindowRow: View {
 struct WindowIcon: View {
     let link: LinkedWindow
     let size: CGFloat
+    /// nil: the app icon in its own colors. Else gray tones of the icon in this color.
+    var tint: Color? = nil
 
     var body: some View {
         Group {
             if let icon = link.icon {
-                Image(nsImage: icon).resizable().interpolation(.high)
+                if let tint {
+                    Image(nsImage: icon).resizable().interpolation(.high)
+                        .saturation(0).brightness(0.15).colorMultiply(tint)
+                } else {
+                    Image(nsImage: icon).resizable().interpolation(.high)
+                }
             } else {
-                Image(systemName: "macwindow").resizable().scaledToFit()
+                Image(systemName: "macwindow").resizable().scaledToFit().foregroundStyle(tint ?? .secondary)
             }
         }
         .frame(width: size, height: size)
@@ -397,7 +404,7 @@ private struct WindowMarker: View {
     var body: some View {
         VStack(spacing: 0) {
             segment
-            WindowIcon(link: link, size: 16).padding(.vertical, 2)
+            WindowIcon(link: link, size: 16, tint: color).padding(.vertical, 2)
             segment
         }
         .frame(width: 20)
