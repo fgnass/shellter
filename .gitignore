@@ -2,6 +2,7 @@
 /build/
 /Shellter.xcodeproj/
 /vendor/GhosttyKit.xcframework/
+/vendor/bin/
 /Resources/ghostty/
 /Resources/terminfo/
 xcuserdata/
