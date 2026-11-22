@@ -25,6 +25,10 @@ final class AgentTests: XCTestCase {
         XCTAssertEqual(Agent.detect(path: "/opt/homebrew/bin/opencode", args: ["opencode"]), .opencode)
     }
 
+    func testAntigravity() {
+        XCTAssertEqual(Agent.detect(path: "/Users/me/.local/bin/agy", args: ["agy"]), .antigravity)
+    }
+
     func testOtherProgramsAreNoAgents() {
         XCTAssertNil(Agent.detect(path: "/bin/zsh", args: ["-zsh"]))
         XCTAssertNil(Agent.detect(path: "/opt/node/bin/node", args: ["node", "/app/node_modules/.bin/vite", "--host"]))
