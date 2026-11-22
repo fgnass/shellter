@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shellter – A home for your shells</title>
+<meta name="description" content="Shellter is a Mac terminal with vertical tabs, grouped by project. It shows which tab works, which one waits for you, and which windows of other apps belong to a project. Built on libghostty. Free and open source.">
+<meta name="theme-color" content="#0b161b">
+<meta property="og:title" content="Shellter – A home for your shells">
+<meta property="og:description" content="A Mac terminal with vertical tabs, grouped by project, that shows which tab waits for you.">
+<meta property="og:image" content="https://shellter.gnass.buzz/assets/img/icon-256.png">
+<meta property="og:url" content="https://shellter.gnass.buzz/">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/icon-256.png">
+<link rel="preload" href="assets/fonts/podkova.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+<script>document.documentElement.classList.add("js")</script>
+<script src="main.js" defer></script>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="icon-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3bafaa"/><stop offset="1" stop-color="#176777"/></linearGradient>
+  </defs>
+  <symbol id="i-app" viewBox="0 0 1024 1024">
+    <rect width="1024" height="1024" rx="230" fill="url(#icon-fill)"/>
+    <path d="M512 205 L838 455 L838 800 L186 800 L186 455 Z" fill="#11212a" stroke="#11212a" stroke-width="70" stroke-linejoin="round"/>
+    <g fill="none" stroke="#e9f3f2" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"><path d="M335 545 L415 625 L335 705"/><path d="M460 705 H644"/></g>
+  </symbol>
+  <symbol id="i-bell" viewBox="0 0 16 16"><path fill="currentColor" d="M8 1.2c-.5 0-.9.4-.9.9v.4A4.4 4.4 0 0 0 3.6 6.8v2.6L2.4 11a.7.7 0 0 0 .6 1.1h10a.7.7 0 0 0 .6-1.1l-1.2-1.6V6.8a4.4 4.4 0 0 0-3.5-4.3v-.4c0-.5-.4-.9-.9-.9zM6.2 13a1.8 1.8 0 0 0 3.6 0z"/></symbol>
+  <symbol id="i-spin" viewBox="0 0 16 16"><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 1.5v3" opacity="1"/><path d="m12.6 3.4-2.1 2.1" opacity=".88"/><path d="M14.5 8h-3" opacity=".76"/><path d="m12.6 12.6-2.1-2.1" opacity=".64"/><path d="M8 14.5v-3" opacity=".52"/><path d="m3.4 12.6 2.1-2.1" opacity=".4"/><path d="M1.5 8h3" opacity=".3"/><path d="m3.4 3.4 2.1 2.1" opacity=".2"/></g></symbol>
+  <symbol id="i-copy" viewBox="0 0 20 20"><rect x="6.5" y="6.5" width="10" height="10" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M13.5 6.5V5.2a1.7 1.7 0 0 0-1.7-1.7H5.2a1.7 1.7 0 0 0-1.7 1.7v6.6a1.7 1.7 0 0 0 1.7 1.7h1.3" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 20 20"><path d="m4.5 10.5 3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<header class="top">
+  <a class="brand" href="#top" aria-label="Shellter, back to top"><svg aria-hidden="true"><use href="#i-app"/></svg>Shellter</a>
+  <nav aria-label="Main">
+    <a href="#status">Features</a>
+    <a href="#compare">Compare</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/fgnass/shellter">GitHub</a>
+  </nav>
+</header>
+
+<main id="top">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-copy">
+      <h1>A home for your&nbsp;shells.</h1>
+      <p class="lead">Shellter is a Mac terminal with vertical tabs, grouped by project. It shows which tab works and which one waits for you. And when a tab opens another app, you find its window there too.</p>
+      <div class="get">
+        <a class="btn" href="#install">Install</a>
+        <a class="btn btn-line" href="#status">See how it works</a>
+      </div>
+      <p class="facts">Free and open source · macOS 14 or later · Apple silicon · Built on libghostty</p>
+    </div>
+
+    <figure class="hero-fig">
+      <img class="shot" src="assets/img/shot-hero.jpg" width="2640" height="1400" fetchpriority="high" alt="The Shellter window on a desktop: on the left three projects with their tabs on lines in the project color. In the first project, a coding agent works on a task (spinner), a dev server runs on port 5174, and Habitab, the agent's browser, is listed below. In the second project, Codex waits for an answer (bell). On the right, the agent's work in the terminal.">
+      <figcaption>Three projects in one window. In the first, an agent works. In the second, an agent waits for you.</figcaption>
+    </figure>
+  </section>
+
+  <!-- STATUS -->
+  <section class="sec sec-flip" id="status" aria-labelledby="h-status">
+    <div class="sec-copy">
+      <p class="kicker">Status at a glance</p>
+      <h2 id="h-status">See which tab waits for you.</h2>
+      <p>You start a build in one tab and an agent in another. Then you work on. Shellter tells you when something needs you.</p>
+      <dl class="states">
+        <div><dt><svg class="st-spin"><use href="#i-spin"/></svg>Working</dt><dd>A program reports progress, or shows a spinner in its title.</dd></div>
+        <div><dt><svg class="st-bell"><use href="#i-bell"/></svg>Needs you</dt><dd>A program rings the bell or sends a notification, or it finished while you looked at another tab.</dd></div>
+        <div><dt><kbd>⌘J</kbd></dt><dd>Go to the next tab that needs you.</dd></div>
+      </dl>
+    </div>
+    <div class="sec-demo dock-demo">
+      <div class="dock" aria-hidden="true">
+        <span class="dock-app"><svg><use href="#i-app"/></svg><b class="badge" id="badge">1</b></span>
+        <span class="dock-dot"></span>
+      </div>
+      <p class="note" id="dock-note">The Dock icon counts the tabs that need you. It bounces when a tab in the background starts to need you.</p>
+    </div>
+  </section>
+
+  <!-- WINDOWS OF OTHER APPS -->
+  <section class="sec" id="windows" aria-labelledby="h-windows">
+    <div class="sec-copy">
+      <p class="kicker">Other apps, too</p>
+      <h2 id="h-windows">Opened from the terminal. Found in the sidebar.</h2>
+      <p>When a program in a tab opens another app, its window shows below the project: the browser that your coding agent starts, or the PDF that <code>open</code> shows. A click brings it to the front.</p>
+      <a class="habitab" href="https://habitab.gnass.buzz/">
+        <img src="assets/img/habitab.png" alt="" width="44" height="44">
+        <span><b>Works well with Habitab ↗</b>Habitab collects the browsers of your coding agents in one window. A click on its row in Shellter opens the session of that agent.</span>
+      </a>
+    </div>
+    <figure class="sec-demo">
+      <img class="shot" src="assets/img/shot-windows.jpg" width="2720" height="1520" loading="lazy" decoding="async" alt="Shellter in front of the Habitab window. In Shellter's sidebar, Habitab is listed below the tab of the agent that uses it.">
+      <figcaption class="note">Habitab shows the agent’s browser. In Shellter, it sits below the tab of that agent.</figcaption>
+    </figure>
+  </section>
+
+  <!-- LOOKS -->
+  <section class="sec sec-flip" id="looks" aria-labelledby="h-looks">
+    <div class="sec-copy">
+      <p class="kicker">Fonts and themes</p>
+      <h2 id="h-looks">Make it yours. The sidebar follows.</h2>
+      <p>Shellter comes with 12 coding fonts and the 450+ themes of Ghostty. It also finds the themes of VS Code, Cursor and other editors, and it can follow the theme of your editor. The sidebar takes the colors of the terminal.</p>
+      <ul class="points">
+        <li>Transparency and blur, with the translucent macOS sidebar.</li>
+        <li>Import <code>.itermcolors</code> or VS Code theme files.</li>
+        <li>Shellter reads your Ghostty config too.</li>
+      </ul>
+    </div>
+    <figure class="sec-demo">
+      <img class="shot" src="assets/img/shot-looks.jpg" width="2640" height="1400" loading="lazy" decoding="async" alt="The same Shellter window in the light theme Rose Pine Dawn with the font Maple Mono; the sidebar is light too.">
+      <figcaption class="note">The same window in Rose Pine Dawn and Maple Mono.</figcaption>
+    </figure>
+  </section>
+
+  <!-- COMPARE -->
+  <section class="compare" id="compare" aria-labelledby="h-compare">
+    <div class="sec-copy">
+      <p class="kicker">Compare</p>
+      <h2 id="h-compare">How Shellter compares to other tools</h2>
+      <p>All three are good tools. Shellter has a smaller job: a normal terminal that keeps your projects in order.</p>
+    </div>
+    <div class="vs-list">
+      <details class="vs">
+        <summary><b>Ghostty</b><span>A fast, native terminal for macOS and Linux, with tabs at the top and splits.</span></summary>
+        <p>Shellter uses the same terminal engine, libghostty, and reads your Ghostty config. It adds what a tab bar cannot show: tabs grouped by project, their status and the windows that belong to them. Shellter has no splits.</p>
+      </details>
+      <details class="vs">
+        <summary><b>cmux</b><span>Also built on libghostty, with vertical tabs and a full workspace for coding agents.</span></summary>
+        <p>cmux adds splits, a browser that agents can script, SSH workspaces and a CLI to control it all. Shellter does less on purpose: it groups tabs by Git repository, and it leaves the browser to a real browser or to Habitab, and shows that window in the sidebar. <a href="https://github.com/manaflow-ai/cmux">cmux on GitHub</a></p>
+      </details>
+      <details class="vs">
+        <summary><b>T3 Code</b><span>Not a terminal: an app that runs coding agents in its own chat view.</span></summary>
+        <p>T3 Code runs on web, desktop and mobile, starts Codex, Claude Code and other agents, and shows their work in one interface. In Shellter, each agent runs in its own terminal interface, as you know it, next to your shells, dev servers and editors. <a href="https://github.com/pingdotgg/t3code">T3 Code on GitHub</a></p>
+      </details>
+    </div>
+  </section>
+
+  <!-- INSTALL -->
+  <section class="install" id="install" aria-labelledby="h-install">
+    <svg class="install-icon" aria-hidden="true"><use href="#i-app"/></svg>
+    <h2 id="h-install">Get Shellter.</h2>
+    <p class="install-lead">Free and open source. For Macs with Apple silicon and macOS 14 or later.</p>
+    <div class="cmd">
+      <span class="cmd-prompt" aria-hidden="true">$</span>
+      <code class="cmd-text" id="cmd-text">curl -fsSL https://raw.githubusercontent.com/fgnass/shellter/main/install.sh | sh</code>
+      <button class="cmd-copy" type="button" id="copy" aria-label="Copy the install command">
+        <svg class="ico-copy"><use href="#i-copy"/></svg><svg class="ico-check"><use href="#i-check"/></svg><span>Copy</span>
+      </button>
+    </div>
+    <p class="install-text">Paste it in Terminal. The script downloads the latest release, checks it, installs it in <code>~/Applications</code> and opens it. Run it again to update.</p>
+    <details class="build">
+      <summary>Build it yourself</summary>
+      <p>You need Xcode, Zig 0.17 or later, XcodeGen and the Metal toolchain.</p>
+<pre class="code"><code>git clone --recursive https://github.com/fgnass/shellter
+cd shellter
+./scripts/build-ghostty.sh
+./scripts/build-zmx.sh
+./scripts/build.sh</code></pre>
+      <p>All details, shortcuts and config files are in the <a href="https://github.com/fgnass/shellter#readme">README</a>.</p>
+    </details>
+  </section>
+</main>
+
+<footer class="foot">
+  <p class="foot-brand"><svg aria-hidden="true"><use href="#i-app"/></svg>Shellter</p>
+  <nav aria-label="Footer">
+    <a href="https://github.com/fgnass/shellter">Source on GitHub</a>
+    <a href="https://github.com/fgnass/shellter/issues">Report a problem</a>
+    <a href="privacy.html">Privacy</a>
+  </nav>
+  <p class="foot-note">A non-commercial hobby project by <a href="https://gnass.buzz/">Felix Gnass</a>. Shellter is built on <a href="https://ghostty.org">libghostty</a> and <a href="https://github.com/neurosnap/zmx">zmx</a>, and it is not affiliated with the other tools on this page. The screenshots show a demo setup; the projects in them are invented. Agent names and logos belong to their owners. Desktop photos by <a href="https://unsplash.com/@jorisbeugels">Joris Beugels</a> and <a href="https://unsplash.com/@i_am_simoesse">Simona Sergi</a> on <a href="https://unsplash.com">Unsplash</a>. Set in <a href="https://github.com/cyrealtype/Podkova">Podkova</a> and the coding fonts that come with the app.</p>
+</footer>
+
+</body>
+</html>

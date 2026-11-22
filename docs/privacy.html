@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy · Shellter</title>
+<meta name="description" content="What Shellter and its website do with your data.">
+<meta name="theme-color" content="#0b161b">
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="stylesheet" href="style.css">
+<style>
+.legal { max-width: 720px; margin: 0 auto; padding: clamp(40px, 7vw, 80px) var(--gutter) 64px; color: var(--soft); }
+.legal h1 { color: var(--text); margin-bottom: 20px; }
+.legal .lead { margin-bottom: 8px; }
+.legal h2 { margin: 48px 0 12px; font-size: 26px; color: var(--text); }
+.legal p + p, .legal p + ul, .legal ul + p { margin-top: 12px; }
+.legal ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.legal li { position: relative; padding-left: 26px; }
+.legal li::before { content: "❯"; position: absolute; left: 0; top: 0; font: 700 13px/1.9 var(--mono); color: var(--teal); }
+.legal .updated { margin-top: 56px; font-size: 15px; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs><linearGradient id="icon-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3bafaa"/><stop offset="1" stop-color="#176777"/></linearGradient></defs>
+  <symbol id="i-app" viewBox="0 0 1024 1024">
+    <rect width="1024" height="1024" rx="230" fill="url(#icon-fill)"/>
+    <path d="M512 205 L838 455 L838 800 L186 800 L186 455 Z" fill="#11212a" stroke="#11212a" stroke-width="70" stroke-linejoin="round"/>
+    <g fill="none" stroke="#e9f3f2" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"><path d="M335 545 L415 625 L335 705"/><path d="M460 705 H644"/></g>
+  </symbol>
+</svg>
+
+<header class="top">
+  <a class="brand" href="./"><svg aria-hidden="true"><use href="#i-app"/></svg>Shellter</a>
+</header>
+
+<main class="legal">
+  <h1>Privacy</h1>
+  <p class="lead">Shellter is a free, non-commercial hobby project. There are no ads, nothing is for sale, and there is no business behind it.</p>
+
+  <h2>Who is responsible</h2>
+  <p>Felix Gnass · <a id="email" href="#">E-Mail</a></p>
+
+  <h2>The app</h2>
+  <p>Shellter runs only on your Mac. It is a terminal: what you type goes to the shells and programs in its tabs, as in any other terminal.</p>
+  <ul>
+    <li>No command, output or other content is sent to me or to a server of mine.</li>
+    <li>The app has no analytics, no crash reports and no update checks.</li>
+    <li>To find the favicon of a dev server and to see which ports serve a web page, Shellter sends requests to <code>localhost</code> on your Mac. These requests do not leave your Mac.</li>
+    <li>To show the status of a tab, its icon and its port, Shellter looks at the processes of its tabs and at the files in their folders. To show the windows of other apps that belong to a project, it uses the Accessibility permission, if you give it. It reads only which file a window shows.</li>
+    <li>To continue the session of a coding agent, Shellter reads the session ID from the agent’s own files on your Mac (for example in <code>~/.claude</code> or <code>~/.codex</code>).</li>
+    <li>The programs that you run in Shellter can connect to the internet, as in any terminal. What they do is outside of Shellter.</li>
+  </ul>
+
+  <h2>What stays on your Mac</h2>
+  <p>Shellter keeps its data in <code>~/Library/Application Support/Shellter</code>.</p>
+  <ul>
+    <li><code>state.json</code> keeps your tabs: their folders, titles, order and the session IDs of coding agents.</li>
+    <li>The zmx sessions of the tabs keep the screen and the scrollback of each tab in memory, so that they come back after Shellter restarts. A restart of the Mac clears them. When you close a tab, its session ends.</li>
+    <li>Your settings (font, theme, sidebar, project colors) are kept in the app’s preferences and in <code>appearance.config</code>.</li>
+  </ul>
+
+  <h2>This website</h2>
+  <ul>
+    <li>No cookies.</li>
+    <li>No analytics, no tracking, no ads.</li>
+    <li>No accounts and no forms.</li>
+    <li>No fonts, scripts or other content from third-party servers. The only scripts are the copy button for the install command and the e-mail link on this page. Links to other sites (for example GitHub) load nothing until you click them.</li>
+  </ul>
+
+  <h2>Hosting and download</h2>
+  <p>This website is hosted on GitHub Pages, and the app is downloaded from GitHub Releases. Both are services of GitHub, Inc., USA. When you open a page or download the app, also with the install command, your browser or your terminal sends the usual request data to GitHub’s servers, including your IP address. GitHub keeps this data in server logs to run and protect the service. I have no access to these logs. The legal basis is my legitimate interest in delivering the website and the app reliably (Art. 6 (1) (f) GDPR). For details, see <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub’s privacy statement</a>.</p>
+
+  <h2>Your rights</h2>
+  <p>Under the GDPR you have the right to access, rectification, erasure, restriction of processing, data portability and to object. Write me an e-mail for this. You can also complain to a data protection supervisory authority, for example the Hamburg Commissioner for Data Protection and Freedom of Information.</p>
+
+  <p class="updated">Last updated: November 2026</p>
+</main>
+
+<footer class="foot">
+  <p class="foot-brand"><svg aria-hidden="true"><use href="#i-app"/></svg><a href="./" style="color: inherit; text-decoration: none">Shellter</a></p>
+  <nav aria-label="Footer">
+    <a href="https://github.com/fgnass/shellter">Source on GitHub</a>
+    <a href="https://github.com/fgnass/shellter/issues">Report a problem</a>
+  </nav>
+  <p class="foot-note">A non-commercial hobby project by <a href="https://gnass.buzz/">Felix Gnass</a>.</p>
+</footer>
+<script>
+  const mail = document.getElementById('email');
+  mail.href = 'mailto:' + 'felix' + String.fromCharCode(64) + ['gnass', 'buzz'].join('.');
+  mail.textContent = 'felix' + String.fromCharCode(64) + ['gnass', 'buzz'].join('.');
+</script>
+</body>
+</html>
