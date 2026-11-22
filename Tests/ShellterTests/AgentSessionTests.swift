@@ -8,6 +8,18 @@ final class AgentSessionTests: XCTestCase {
         XCTAssertNil(AgentSession.codexSessionID(fromPath: "/tmp/rollout-not-a-uuid.jsonl"))
     }
 
+    func testAntigravityConversationIDFromOpenFiles() {
+        let id = "14c660a9-6be7-4af2-b7c8-d150c9a7b405"
+        XCTAssertEqual(AgentSession.antigravityConversationID(
+            fromPath: "/Users/me/.gemini/antigravity-cli/presence/\(id).lock"), id)
+        XCTAssertEqual(AgentSession.antigravityConversationID(
+            fromPath: "/Users/me/.gemini/antigravity-cli/conversations/\(id).db"), id)
+        XCTAssertNil(AgentSession.antigravityConversationID(
+            fromPath: "/Users/me/.gemini/antigravity-cli/conversations/\(id).db-wal"))
+        XCTAssertNil(AgentSession.antigravityConversationID(
+            fromPath: "/Users/me/.gemini/antigravity-cli/implicit/\(id).pb"))
+    }
+
     func testPiSessionDirectory() {
         XCTAssertTrue(AgentSession.piSessionDirectory(for: "/Users/me/Projects/app").path
             .hasSuffix("/.pi/agent/sessions/--Users-me-Projects-app--"))
@@ -17,6 +29,8 @@ final class AgentSessionTests: XCTestCase {
         XCTAssertEqual(AgentSession.resumeCommand(.claude, session: "abc-123"), "claude --resume abc-123")
         XCTAssertEqual(AgentSession.resumeCommand(.claude, session: nil), "claude --continue")
         XCTAssertEqual(AgentSession.resumeCommand(.codex, session: nil), "codex resume --last")
+        XCTAssertEqual(AgentSession.resumeCommand(.antigravity, session: "abc-123"), "agy --conversation abc-123")
+        XCTAssertEqual(AgentSession.resumeCommand(.antigravity, session: nil), "agy --continue")
         XCTAssertEqual(AgentSession.resumeCommand(.pi, session: "/Users/me/my sessions/a.jsonl"),
                        "pi --session '/Users/me/my sessions/a.jsonl'")
     }
@@ -27,6 +41,7 @@ final class AgentSessionTests: XCTestCase {
         XCTAssertEqual(AgentSession.forkCommand(.codex, session: nil), "codex fork --last")
         XCTAssertEqual(AgentSession.forkCommand(.pi, session: "/s/a.jsonl"), "pi --fork /s/a.jsonl")
         XCTAssertNil(AgentSession.forkCommand(.opencode, session: "x"))
+        XCTAssertNil(AgentSession.forkCommand(.antigravity, session: "x"))
     }
 
     func testNamedFork() {

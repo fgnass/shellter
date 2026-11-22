@@ -25,6 +25,14 @@ enum AgentSession {
             return nil
         case .pi:
             return newestFile(in: piSessionDirectory(for: cwd))?.path
+        case .antigravity:
+            // agy keeps presence/<id>.lock and conversations/<id>.db open while a conversation runs.
+            for pid in pids {
+                for path in ProcessInspector.openFiles(of: pid) {
+                    if let id = antigravityConversationID(fromPath: path) { return id }
+                }
+            }
+            return nil
         case .opencode:
             return nil
         }
@@ -37,6 +45,7 @@ enum AgentSession {
         case .codex: return session.map { "codex resume \(Shell.quote($0))" } ?? "codex resume --last"
         case .pi: return session.map { "pi --session \(Shell.quote($0))" } ?? "pi --continue"
         case .opencode: return "opencode --continue"
+        case .antigravity: return session.map { "agy --conversation \(Shell.quote($0))" } ?? "agy --continue"
         }
     }
 
@@ -49,7 +58,7 @@ enum AgentSession {
         case .claude: return session.map { "claude --resume \(Shell.quote($0)) --fork-session" + named }
         case .codex: return session.map { "codex fork \(Shell.quote($0))" } ?? "codex fork --last"
         case .pi: return session.map { "pi --fork \(Shell.quote($0))" + named }
-        case .opencode: return nil
+        case .opencode, .antigravity: return nil
         }
     }
 
@@ -68,6 +77,16 @@ enum AgentSession {
         let name = (path as NSString).lastPathComponent
         guard name.hasPrefix("rollout-"), name.hasSuffix(".jsonl"), name.count > 42 else { return nil }
         let id = String(name.dropLast(6).suffix(36))
+        return UUID(uuidString: id) != nil ? id : nil
+    }
+
+    /// The conversation ID in an Antigravity CLI path:
+    /// ~/.gemini/antigravity-cli/presence/<id>.lock or …/conversations/<id>.db.
+    static func antigravityConversationID(fromPath path: String) -> String? {
+        guard path.contains("/antigravity-cli/presence/") || path.contains("/antigravity-cli/conversations/") else { return nil }
+        let name = (path as NSString).lastPathComponent
+        guard name.hasSuffix(".lock") || name.hasSuffix(".db") else { return nil }
+        let id = (name as NSString).deletingPathExtension
         return UUID(uuidString: id) != nil ? id : nil
     }
 

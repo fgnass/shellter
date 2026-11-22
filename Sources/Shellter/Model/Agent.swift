@@ -2,7 +2,7 @@ import AppKit
 
 /// A coding agent (harness) that runs in a tab.
 enum Agent: String, Equatable, CaseIterable {
-    case claude, codex, opencode, pi
+    case claude, codex, opencode, pi, antigravity
 
     var name: String {
         switch self {
@@ -10,6 +10,7 @@ enum Agent: String, Equatable, CaseIterable {
         case .codex: return "Codex"
         case .opencode: return "OpenCode"
         case .pi: return "Pi"
+        case .antigravity: return "Antigravity"
         }
     }
 
@@ -20,6 +21,7 @@ enum Agent: String, Equatable, CaseIterable {
         case .codex: return "codex"
         case .opencode: return "opencode"
         case .pi: return "pi"
+        case .antigravity: return "agy"
         }
     }
 
@@ -41,6 +43,7 @@ enum Agent: String, Equatable, CaseIterable {
         case .codex: return NSColor(srgbRed: 0.06, green: 0.60, blue: 0.47, alpha: 1)
         case .opencode: return NSColor(srgbRed: 0.93, green: 0.64, blue: 0.10, alpha: 1)
         case .pi: return NSColor(srgbRed: 0.40, green: 0.42, blue: 0.95, alpha: 1)
+        case .antigravity: return NSColor(srgbRed: 0.19, green: 0.53, blue: 1.00, alpha: 1)
         }
     }
 
@@ -57,6 +60,7 @@ enum Agent: String, Equatable, CaseIterable {
             if base == "codex" || base == "codex.js" || lower.contains("@openai/codex") { return .codex }
             if base == "opencode" || lower.contains("opencode-ai") || lower.contains("/opencode/") { return .opencode }
             if base == "pi" || lower.contains("pi-coding-agent") || lower.contains("/.pi/agent/") { return .pi }
+            if base == "agy" { return .antigravity }
         }
         return nil
     }
