@@ -30,4 +30,28 @@ final class LinkedWindowsTests: XCTestCase {
         let w = LinkedWindows.DocumentWindow(pid: 1, appName: "Deck", path: "/pages/a.pptx")
         XCTAssertTrue(LinkedWindows.assign([w], to: [(a, "/p", true)]).isEmpty)
     }
+
+    func testEditorTitle() {
+        XCTAssertEqual(LinkedWindows.folderName(fromTitle: "a.md — webshop"), "webshop")
+        XCTAssertEqual(LinkedWindows.folderName(fromTitle: "Draft • Untitled-1 — webshop"), "webshop")
+        XCTAssertEqual(LinkedWindows.folderName(fromTitle: "webshop"), "webshop")
+    }
+
+    func testEditorWindowBelongsToProjectFolder() {
+        let a = UUID(), b = UUID(), other = UUID()
+        let w = LinkedWindows.DocumentWindow(pid: 1, appName: "Code", path: nil, folderName: "webshop")
+        let found = LinkedWindows.assign([w], to: [(a, "/p/webshop", true), (b, "/p/webshop", false),
+                                                   (other, "/p/other", true)])
+        XCTAssertEqual(found[a]?.first?.document, "/p/webshop")
+        XCTAssertEqual(found[b]?.first?.document, "/p/webshop")
+        XCTAssertNil(found[other])
+    }
+
+    func testEditorFileDecidesBetweenFoldersWithSameName() {
+        let a = UUID(), b = UUID()
+        let w = LinkedWindows.DocumentWindow(pid: 1, appName: "Code", path: "/b/app/x.swift", folderName: "app")
+        let found = LinkedWindows.assign([w], to: [(a, "/a/app", true), (b, "/b/app", true)])
+        XCTAssertNil(found[a])
+        XCTAssertEqual(found[b]?.first?.document, "/b/app")
+    }
 }

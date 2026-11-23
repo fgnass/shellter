@@ -6,6 +6,7 @@ struct SidebarView: View {
     @ObservedObject var store: SessionStore
     @ObservedObject private var layout = SidebarSettings.shared
     @ObservedObject private var projectColors = ProjectColors.shared
+    @ObservedObject private var editors = EditorSettings.shared
     @Environment(\.colorScheme) private var colorScheme
     @State private var dropTargeted = false
     /// The item that the user drags inside the sidebar.
@@ -270,8 +271,17 @@ struct SidebarView: View {
                 }
             }
         }
+        openInEditor(group.id)
         Button("Reveal in Finder") {
             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: group.id)
+        }
+    }
+
+    /// Opens the project folder in the editor from the settings.
+    @ViewBuilder
+    private func openInEditor(_ folder: String) -> some View {
+        if let editor = editors.editor {
+            Button("Open in \(editor.name)") { editors.open(folder) }
         }
     }
 
@@ -304,6 +314,7 @@ struct SidebarView: View {
                 NSWorkspace.shared.open(URL(string: "http://localhost:\(port)/")!)
             }
         }
+        openInEditor(s.projectRoot)
         Button("Reveal in Finder") {
             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: s.cwd)
         }
