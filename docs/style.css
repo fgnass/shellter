@@ -105,7 +105,7 @@ h2 { font: 700 clamp(32px, 3.8vw, 48px)/1.08 var(--display); letter-spacing: -0.
 .copy-card { width: 100%; max-width: 520px; border-radius: 12px; background: var(--deep); box-shadow: 0 0 0 1px var(--rule), 0 24px 50px -24px rgba(0, 0, 0, 0.7); overflow: hidden; }
 .copy-label { display: block; padding: 10px 16px; border-bottom: 1px solid var(--rule); font: 700 12px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--soft); }
 .copy-card pre { margin: 0; padding: 14px 16px 16px; font: 400 clamp(11px, 2.9vw, 14px)/1.6 var(--mono); color: var(--text); }
-.copy-term { overflow-x: auto; }
+.copy-term { overflow-x: auto; line-height: 1.32 !important; }
 .copy-term i { font-style: normal; color: var(--bell); }
 .copy-clip { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--sans) !important; font-size: 15px !important; }
 .copy-step { color: var(--teal); }
