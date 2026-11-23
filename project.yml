@@ -76,6 +76,7 @@ targets:
       - path: Sources/Shellter/Model/Shell.swift
       - path: Sources/Shellter/Model/AgentText.swift
       - path: Sources/Shellter/Model/Reorder.swift
+      - path: Sources/Shellter/Model/RecentProjects.swift
       - path: Sources/Shellter/Model/IconResolver.swift
       - path: Sources/Shellter/UI/SidebarSettings.swift
       - path: Sources/Shellter/UI/ProjectColors.swift

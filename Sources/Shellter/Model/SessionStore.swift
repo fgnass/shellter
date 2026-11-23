@@ -20,6 +20,10 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
     /// Per tab: apps that its processes started, and windows that show a file of its project.
     @Published private(set) var appWindows: [UUID: [LinkedWindow]] = [:]
     @Published private(set) var documentWindows: [UUID: [LinkedWindow]] = [:]
+    /// Projects whose last tab closed, the latest first.
+    @Published private(set) var recent = RecentProjects()
+    /// Project icons of the recent projects, for the menu.
+    @Published private(set) var recentIcons: [String: NSImage] = [:]
     @Published var selectedID: UUID? {
         didSet { if oldValue != selectedID { selectionDidChange() } }
     }
@@ -153,6 +157,70 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
         .store(in: &bag)
     }
 
+    /// Recent projects that have no open tab now.
+    var recentProjects: [RecentProject] {
+        let open = Set(sessions.map(\.projectRoot))
+        return recent.projects.filter { !open.contains($0.root) }
+    }
+
+    /// Opens the tabs of a recent project again. Agents resume their sessions.
+    func reopen(_ project: RecentProject) {
+        recent.remove(project.root)
+        var first: Session?
+        for saved in project.tabs {
+            let s = newTab(cwd: saved.cwd, select: false)
+            s.rawTitle = saved.title
+            s.customTitle = saved.customTitle
+            if let agent = saved.agent.flatMap(Agent.init(rawValue:)) {
+                s.agent = agent
+                s.agentSession = saved.agentSession
+                s.initialInput = AgentSession.resumeCommand(agent, session: saved.agentSession) + "\n"
+            }
+            first = first ?? s
+        }
+        if project.tabs.isEmpty { first = newTab(cwd: project.root, select: false) }
+        if let first { selectedID = first.id }
+        scheduleSave()
+    }
+
+    /// Opens the project that closed last. Returns false if there is none.
+    @discardableResult
+    func reopenLastProject() -> Bool {
+        guard let p = recentProjects.first else { return false }
+        reopen(p)
+        return true
+    }
+
+    func clearRecentProjects() {
+        recent.removeAll()
+        scheduleSave()
+    }
+
+    /// Closes all tabs of a project. One question if processes still run in them.
+    func close(project root: String) {
+        let tabs = orderedSessions.filter { $0.projectRoot == root }
+        let running = tabs.filter { runningProcess(in: $0) != nil }
+        if !running.isEmpty {
+            let alert = NSAlert()
+            let name = tabs.first?.projectName ?? root
+            alert.messageText = "Close “\(name)”?"
+            alert.informativeText = running.count == 1
+                ? "\(runningProcess(in: running[0])!) is still running in “\(running[0].title)”. Closing the project ends it."
+                : "Processes are still running in \(running.count) tabs. Closing the project ends them."
+            alert.addButton(withTitle: "Close")
+            alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+        // Select a tab of another project first, so the tabs to close are not shown one by one.
+        let ordered = orderedSessions
+        if let sel = selected, sel.projectRoot == root, let i = ordered.firstIndex(where: { $0.id == sel.id }) {
+            let other = ordered[i...].first { $0.projectRoot != root }
+                ?? ordered[..<i].last { $0.projectRoot != root }
+            if let other { selectedID = other.id }
+        }
+        for s in tabs { close(s, force: true) }
+    }
+
     func close(_ s: Session, force: Bool = false) {
         if !force, let running = runningProcess(in: s) {
             let alert = NSAlert()
@@ -168,6 +236,9 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
         // Closing a tab ends its shell. (Quitting Shellter only detaches.)
         if let name = s.zmxSession { Zmx.kill(name) }
         sessions.removeAll { $0.id == s.id }
+        recent.tabClosed(s.saved, root: s.projectRoot,
+                         projectOpen: sessions.contains { $0.projectRoot == s.projectRoot })
+        if let icon = s.dirIcon { recentIcons[s.projectRoot] = icon }
         appWindows[s.id] = nil
         updateDockBadge()
         if selectedID == s.id {
@@ -485,6 +556,7 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
     private struct State: Codable {
         var sessions: [Session.Saved]
         var selected: UUID?
+        var recent: [RecentProject]?
     }
 
     private static var stateURL: URL {
@@ -502,7 +574,8 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
     }
 
     func save() {
-        let state = State(sessions: sessions.map(\.saved), selected: selectedID)
+        let state = State(sessions: sessions.map(\.saved), selected: selectedID,
+                          recent: recentProjects)
         if let data = try? JSONEncoder().encode(state) {
             try? data.write(to: Self.stateURL, options: .atomic)
         }
@@ -511,6 +584,12 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
     private func restore() {
         guard let data = try? Data(contentsOf: Self.stateURL),
               let state = try? JSONDecoder().decode(State.self, from: data) else { return }
+        recent = RecentProjects(projects: state.recent ?? [])
+        for p in recent.projects {
+            IconResolver.shared.directoryIcon(for: p.root) { [weak self] img in
+                if let img { self?.recentIcons[p.root] = img }
+            }
+        }
         // Shells that still run in zmx come back as they were. Where the shell is gone
         // (after a reboot, or without zmx), start the agent of the tab again where it was.
         let alive = Zmx.isAvailable ? Set(Zmx.list().keys) : []
