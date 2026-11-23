@@ -29,6 +29,8 @@ protocol TerminalEventHandler: AnyObject {
     func terminal(_ view: TerminalView, didEmit event: TerminalEvent)
     func terminalDidRequestClose(_ view: TerminalView, processAlive: Bool)
     func terminalDidReceiveInput(_ view: TerminalView)
+    /// The path to insert for a tab or project dragged from the sidebar into a terminal.
+    func terminal(_ view: TerminalView, pathForSidebarItem data: Data) -> URL?
 }
 
 /// Owns the single `ghostty_app_t` and routes runtime callbacks.

@@ -14,6 +14,8 @@ struct SidebarView: View {
     /// The drop zones under a dragged sidebar item, with the project of each zone.
     /// Nested zones (a tab row in a project) can both be targeted, so this is not one value.
     @State private var dropZones: [String: String] = [:]
+    /// The drag over a drop zone comes from another app (e.g. a folder from the Finder).
+    @State private var externalDrag = false
     /// The title bar over the sidebar and the New Tab button below it.
     @State private var insets = EdgeInsets()
     /// Tabs that need input but are scrolled out of view. Not observed here: it changes
@@ -40,7 +42,8 @@ struct SidebarView: View {
             .padding(.vertical, 8)
         }
         .overlay {
-            if dropTargeted {
+            // A folder from the Finder over the sidebar, or over a project or tab in it.
+            if dropTargeted || (externalDrag && !dropZones.isEmpty) {
                 RoundedRectangle(cornerRadius: 8)
                     .strokeBorder(Color.accentColor, lineWidth: 2)
                     .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.08)))
@@ -199,13 +202,26 @@ struct SidebarView: View {
     }
 
     private func setZone(_ key: String, root: String, _ over: Bool) {
-        if over { dropZones[key] = root } else { dropZones[key] = nil }
+        if over {
+            dropZones[key] = root
+            // A drag inside the sidebar carries the sidebar item type, a folder only a file URL.
+            let types = NSPasteboard(name: .drag).types ?? []
+            externalDrag = !types.contains(.shellterSidebarItem)
+        } else {
+            dropZones[key] = nil
+        }
     }
 
     /// A dragged project moves to the place of the project `target`. A dragged tab moves
     /// to the place of the tab `tab`, but only inside its own project.
     private func drop(_ items: [SidebarDragItem], on target: String, tab: UUID? = nil) -> Bool {
-        defer { dragging = nil; dropZones = [:] }
+        defer { dragging = nil; dropZones = [:]; externalDrag = false }
+        let files = items.compactMap(\.file)
+        if !files.isEmpty {
+            store.openDirectories(files)
+            NSApp.activate(ignoringOtherApps: true)
+            return true
+        }
         guard let item = items.first else { return false }
         if let root = item.group {
             store.move(group: root, to: target)
@@ -413,19 +429,26 @@ private struct GroupHeader: View {
     }
 }
 
-/// A tab or a project, dragged inside the sidebar to reorder it. Its own type keeps it
-/// apart from folders dropped from the Finder.
+/// A tab or a project, dragged inside the sidebar to reorder it, or a folder dropped from
+/// the Finder. The drop zones of projects and tabs cover the sidebar: they must take
+/// folders too, else a folder can only be dropped in the gaps between the projects.
 struct SidebarDragItem: Codable, Transferable {
     var tab: UUID?
     var group: String?
+    var file: URL?
 
     static var transferRepresentation: some TransferRepresentation {
         CodableRepresentation(contentType: .shellterSidebarItem)
+        ProxyRepresentation(importing: { (url: URL) in SidebarDragItem(file: url) })
     }
 }
 
 extension UTType {
     static let shellterSidebarItem = UTType(exportedAs: "com.fgnass.shellter.sidebar-item")
+}
+
+extension NSPasteboard.PasteboardType {
+    static let shellterSidebarItem = NSPasteboard.PasteboardType(UTType.shellterSidebarItem.identifier)
 }
 
 /// A row with hover, selection and drop-target highlight.

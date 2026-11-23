@@ -20,7 +20,7 @@ private let promisedFileURL = NSPasteboard.PasteboardType("com.apple.pasteboard.
 /// Coding agents read images from such paths. Text inserts as a paste.
 extension TerminalView {
     static let dropTypes: [NSPasteboard.PasteboardType] =
-        [.fileURL, .URL, promisedFileURL, .init("NSFilenamesPboardType"),
+        [.shellterSidebarItem, .fileURL, .URL, promisedFileURL, .init("NSFilenamesPboardType"),
          .png, .tiff, .init("public.jpeg"), .init("public.heic"), .string] + NSFilePromiseReceiver.readableDraggedTypes.map { .init($0) }
 
     func registerForDrops() {
@@ -34,6 +34,17 @@ extension TerminalView {
     override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
         let pb = sender.draggingPasteboard
         log.notice("drop, types: \((pb.types ?? []).map(\.rawValue), privacy: .public)")
+
+        // A tab from the sidebar inserts the file with its agent's conversation,
+        // a project its folder.
+        if let data = pb.data(forType: .shellterSidebarItem) {
+            guard let url = eventHandler?.terminal(self, pathForSidebarItem: data) else {
+                NSSound.beep()
+                return false
+            }
+            insertPaths([url])
+            return true
+        }
 
         if let urls = pb.readObjects(forClasses: [NSURL.self],
                                      options: [.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty {

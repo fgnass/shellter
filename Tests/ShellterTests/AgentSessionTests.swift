@@ -51,4 +51,12 @@ final class AgentSessionTests: XCTestCase {
         XCTAssertEqual(AgentSession.branchName(title: String(repeating: "x", count: 50)).count, 48)
         XCTAssertEqual(AgentSession.branchName(title: ""), "Branch")
     }
+
+    func testCodexCwdComesFromTheFirstLineOfTheRollout() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("rollout-\(UUID()).jsonl")
+        let lines = #"{"type":"session_meta","payload":{"id":"x","cwd":"/Users/me/project"}}"# + "\n" + #"{"type":"other"}"#
+        try lines.write(to: url, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: url) }
+        XCTAssertEqual(AgentSession.codexCwd(of: url), "/Users/me/project")
+    }
 }
