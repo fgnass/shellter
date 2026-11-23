@@ -8,7 +8,6 @@ final class WindowChrome: ObservableObject {
 
     @Published private(set) var background: NSColor = .windowBackgroundColor
     @Published private(set) var opacity: Double = 1
-    @Published private(set) var blur = 0
     @Published private(set) var isDark = true
     @Published private(set) var sidebarStyle: AppearanceSettings.SidebarStyle = .terminal
 
@@ -32,7 +31,6 @@ final class WindowChrome: ObservableObject {
         // Assign only changed values: every assignment re-renders the sidebar.
         if background != bg { background = bg }
         if opacity != app.backgroundOpacity { opacity = app.backgroundOpacity }
-        if blur != app.backgroundBlur { blur = app.backgroundBlur }
         let dark = Self.luminance(bg) < 0.5
         if isDark != dark { isDark = dark }
     }
@@ -46,11 +44,10 @@ final class WindowChrome: ObservableObject {
         return 0.2126 * rgb.redComponent + 0.7152 * rgb.greenComponent + 0.0722 * rgb.blueComponent
     }
 
-    /// With the macOS sidebar style, a transparent terminal gets the same material
-    /// as the sidebar, tinted with the theme background.
-    func usesMaterial(in window: NSWindow) -> Bool {
-        sidebarStyle == .system && !window.styleMask.contains(.fullScreen)
-    }
+    /// The macOS sidebar material behind the whole window. A transparent terminal shows it
+    /// tinted with the theme background, so it looks the same with every sidebar style.
+    /// The macOS sidebar style needs it also for an opaque terminal.
+    var showsMaterial: Bool { sidebarStyle == .system || opacity < 1 }
 
     /// The floating glass sidebar of macOS 26. It gets its own material, so the window
     /// needs none.
@@ -66,22 +63,8 @@ final class WindowChrome: ObservableObject {
         let color = transparent ? NSColor.white.withAlphaComponent(0.001) : background
         if window.isOpaque == transparent { window.isOpaque = !transparent }
         if window.backgroundColor != color { window.backgroundColor = color }
-        // The material blurs by itself.
-        let radius = transparent && !usesMaterial(in: window) ? blur : 0
-        if radius != appliedBlur[window.windowNumber] {
-            appliedBlur[window.windowNumber] = radius
-            _ = CGSSetWindowBackgroundBlurRadius(
-                CGSDefaultConnectionForThread(), window.windowNumber, Int32(radius))
-        }
     }
-    private var appliedBlur: [Int: Int] = [:]
 }
-
-@_silgen_name("CGSDefaultConnectionForThread")
-private func CGSDefaultConnectionForThread() -> UnsafeMutableRawPointer?
-
-@_silgen_name("CGSSetWindowBackgroundBlurRadius")
-private func CGSSetWindowBackgroundBlurRadius(_ cid: UnsafeMutableRawPointer?, _ wid: Int, _ radius: Int32) -> Int32
 
 /// The sidebar background: the terminal color, or the translucent macOS sidebar material.
 struct SidebarBackground: View {

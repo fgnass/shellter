@@ -163,8 +163,6 @@ struct WindowSettingsView: View {
     @State private var axAccess = LinkedWindows.hasAccess
 
     private var opacity: Double { settings.state.backgroundOpacity ?? chrome.opacity }
-    private var blur: Int { settings.state.backgroundBlur ?? chrome.blur }
-    private var material: Bool { (settings.state.sidebarStyle ?? .terminal).effective == .system }
 
     var body: some View {
         Form {
@@ -222,25 +220,9 @@ struct WindowSettingsView: View {
                             .frame(width: 44, alignment: .trailing)
                     }
                 }
-                if !material {
-                    LabeledContent("Blur") {
-                        HStack {
-                            Slider(value: Binding(
-                                get: { Double(blur) },
-                                set: { settings.state.backgroundBlur = Int($0.rounded()) }
-                            ), in: 0...60)
-                            Text("\(blur)")
-                                .monospacedDigit()
-                                .frame(width: 44, alignment: .trailing)
-                        }
-                    }
-                    .disabled(opacity >= 1)
-                }
-                Text(material
-                     ? "The terminal gets the same frosted material as the macOS sidebar, "
-                        + "tinted with the theme background. Lower opacity: more material, less theme color."
-                     : "The desktop and other windows show through the terminal and the sidebar. "
-                        + "Blur makes text easier to read. Full screen is always opaque.")
+                Text("Below opacity 100 %, the terminal gets the frosted material of the macOS "
+                     + "sidebar, tinted with the theme background. Lower opacity: more material, "
+                     + "less theme color.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
