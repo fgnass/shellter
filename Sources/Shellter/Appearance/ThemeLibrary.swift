@@ -30,7 +30,12 @@ struct TerminalTheme: Identifiable, Hashable {
             "foreground = \(foreground.hex)",
         ]
         if let cursor { lines.append("cursor-color = \(cursor.hex)") }
-        if let selection { lines.append("selection-background = \(selection.hex)") }
+        if let selection {
+            lines.append("selection-background = \(selection.hex)")
+            // Without a foreground, Ghostty draws selected text in the background color.
+            // Editors draw the selection behind the text, so keep the text colors.
+            lines.append("selection-foreground = cell-foreground")
+        }
         for (i, c) in palette.enumerated() { lines.append("palette = \(i)=\(c.hex)") }
         return lines.joined(separator: "\n") + "\n"
     }

@@ -160,7 +160,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         WindowChrome.shared.apply(to: window)
         updateSidebarItem()
         let chrome = WindowChrome.shared
-        root.setMaterial(chrome.sidebarStyle == .system)
+        root.setMaterial(chrome.showsMaterial)
         root.setBackdrop(chrome.floatingSidebar ? chrome.background.withAlphaComponent(chrome.opacity) : nil)
         split.splitView.needsDisplay = true
     }
