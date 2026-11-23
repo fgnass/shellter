@@ -573,12 +573,29 @@ final class TerminalView: NSView {
     // MARK: Menu actions
 
     @objc func copy(_ sender: Any?) {
+        guard let surface, ghostty_surface_has_selection(surface) else { return sendCopyKey() }
         guard cleansCopiedText(), let text = cleanedSelection() else { return copyRawText(sender) }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
     }
 
     @objc func copyRawText(_ sender: Any?) { performBinding("copy_to_clipboard") }
+
+    /// Programs that take the mouse (e.g. Codex) select text themselves, so the terminal
+    /// has no selection. They copy their selection on ⌘C: send the key on to the program.
+    /// Ghostty's ⌘C binding is `performable`, so without a selection Ghostty encodes the
+    /// key for the program (as super+c, if the program asked for the Kitty keyboard protocol).
+    private func sendCopyKey() {
+        let current = NSApp.currentEvent
+        let event = current.flatMap {
+            $0.type == .keyDown && $0.modifierFlags.contains(.command)
+                && $0.charactersIgnoringModifiers?.lowercased() == "c" ? $0 : nil
+        } ?? NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: .command,
+            timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window?.windowNumber ?? 0,
+            context: nil, characters: "c", charactersIgnoringModifiers: "c", isARepeat: false, keyCode: 8)
+        if let event { keyDown(with: event) }
+    }
 
     /// The empty space in points below the last row: the part of the view that does not
     /// fit a whole row. Ghostty splits it between the top and the bottom.
