@@ -5,12 +5,14 @@ import ApplicationServices
 /// - an app that runs below the tab's processes (e.g. a browser that a coding agent
 ///   started through an MCP server),
 /// - a window that shows a file in the tab's folder (e.g. a slide deck that the agent
-///   opened with `open`). This needs the Accessibility permission.
+///   opened with `open`), or an editor window of the tab's project folder (e.g. after
+///   `code .`). This needs the Accessibility permission.
 struct LinkedWindow: Identifiable, Equatable {
     /// The app's PID.
     let pid: pid_t
     let appName: String
-    /// The file the window shows, nil for an app from the process tree.
+    /// The file the window shows, or the project folder of an editor window. Nil for an
+    /// app from the process tree.
     let document: String?
     /// The PID of the process that started the app, for apps that can show one of their
     /// sessions (Habitab: its session ID is "hb-p<pid>").
@@ -51,7 +53,10 @@ enum LinkedWindows {
     struct DocumentWindow: Equatable {
         let pid: pid_t
         let appName: String
-        let path: String
+        /// The file of the window (AXDocument), if any.
+        let path: String?
+        /// The name of the folder that an editor window of the VS Code family shows.
+        var folderName: String? = nil
     }
 
     static var hasAccess: Bool { AXIsProcessTrusted() }
@@ -64,24 +69,50 @@ enum LinkedWindows {
 
     /// The windows of all regular apps that show a file. Safe on a background queue.
     /// An app that does not answer in time is skipped.
-    static func documentWindows(apps: [(pid: pid_t, name: String)]) -> [DocumentWindow] {
+    static func documentWindows(apps: [RegularApp]) -> [DocumentWindow] {
         guard hasAccess else { return [] }
         var result: [DocumentWindow] = []
         for app in apps {
+            let editor = vscodeFamily.contains(app.bundleID)
             for w in windows(of: app.pid) {
-                guard let path = document(of: w) else { continue }
-                result.append(DocumentWindow(pid: app.pid, appName: app.name, path: path))
+                let path = document(of: w)
+                let folder = editor ? title(of: w).flatMap(folderName(fromTitle:)) : nil
+                guard path != nil || folder != nil else { continue }
+                result.append(DocumentWindow(pid: app.pid, appName: app.name, path: path, folderName: folder))
             }
         }
         return result
     }
 
+    /// The folder name in a window title of the VS Code family: "<file> — <folder>",
+    /// or only "<folder>" when no file is open.
+    static func folderName(fromTitle title: String) -> String? {
+        let parts = title.components(separatedBy: " — ")
+        let name = (parts.count >= 2 ? parts[1] : parts[0]).trimmingCharacters(in: .whitespaces)
+        return name.isEmpty ? nil : name
+    }
+
+    /// Editors of the VS Code family. Their window title is "<file> — <folder name>", so
+    /// the window of a project is found also when its file is not saved.
+    static let vscodeFamily: Set<String> = [
+        "com.microsoft.VSCode", "com.microsoft.VSCodeInsiders",
+        "com.todesktop.230313mzl4w4u92",   // Cursor
+        "com.exafunction.windsurf", "com.vscodium",
+    ]
+
+    struct RegularApp {
+        let pid: pid_t
+        let name: String
+        let bundleID: String
+    }
+
     /// Regular apps except Shellter. Must run on the main thread.
-    static func regularApps() -> [(pid: pid_t, name: String)] {
+    static func regularApps() -> [RegularApp] {
         let own = ProcessInfo.processInfo.processIdentifier
         return NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular && $0.processIdentifier != own }
-            .map { ($0.processIdentifier, $0.localizedName ?? "") }
+            .map { RegularApp(pid: $0.processIdentifier, name: $0.localizedName ?? "",
+                              bundleID: $0.bundleIdentifier ?? "") }
     }
 
     /// The document windows that belong to each tab: the file is in the tab's folder.
@@ -90,13 +121,32 @@ enum LinkedWindows {
     static func assign(_ windows: [DocumentWindow],
                        to tabs: [(id: UUID, cwd: String, hasAgent: Bool)]) -> [UUID: [LinkedWindow]] {
         var result: [UUID: [LinkedWindow]] = [:]
+        func add(_ link: LinkedWindow, to id: UUID) {
+            if !(result[id] ?? []).contains(link) { result[id, default: []].append(link) }
+        }
         for w in windows {
-            var matches = tabs.filter { $0.cwd != "/" && w.path.hasPrefix($0.cwd + "/") }
+            // An editor window belongs to all tabs of the project with the folder's name.
+            // When more projects have this name, the file of the window decides.
+            if let name = w.folderName {
+                var roots = Set(tabs.map(\.cwd).filter { ($0 as NSString).lastPathComponent == name })
+                if roots.count > 1, let path = w.path {
+                    roots = roots.filter { path.hasPrefix($0 + "/") }
+                }
+                if !roots.isEmpty {
+                    for root in roots {
+                        let link = LinkedWindow(pid: w.pid, appName: w.appName, document: root, launcherParent: nil)
+                        for t in tabs where t.cwd == root { add(link, to: t.id) }
+                    }
+                    continue
+                }
+            }
+            guard let path = w.path else { continue }
+            var matches = tabs.filter { $0.cwd != "/" && path.hasPrefix($0.cwd + "/") }
             guard let deepest = matches.map(\.cwd.count).max() else { continue }
             matches = matches.filter { $0.cwd.count == deepest }
             if matches.contains(where: \.hasAgent) { matches = matches.filter(\.hasAgent) }
-            let link = LinkedWindow(pid: w.pid, appName: w.appName, document: w.path, launcherParent: nil)
-            for m in matches where !(result[m.id] ?? []).contains(link) { result[m.id, default: []].append(link) }
+            let link = LinkedWindow(pid: w.pid, appName: w.appName, document: path, launcherParent: nil)
+            for m in matches { add(link, to: m.id) }
         }
         return result
     }
@@ -105,6 +155,15 @@ enum LinkedWindows {
 
     static func show(_ link: LinkedWindow) {
         guard let app = NSRunningApplication(processIdentifier: link.pid) else { return }
+        // The project folder of an editor: opening the folder again brings its window
+        // to the front, also when the window shows another file now.
+        var isDir: ObjCBool = false
+        if let folder = link.document, let appURL = app.bundleURL,
+           FileManager.default.fileExists(atPath: folder, isDirectory: &isDir), isDir.boolValue {
+            NSWorkspace.shared.open([URL(fileURLWithPath: folder, isDirectory: true)],
+                                    withApplicationAt: appURL, configuration: NSWorkspace.OpenConfiguration())
+            return
+        }
         if let document = link.document, hasAccess,
            let w = windows(of: link.pid).first(where: { Self.document(of: $0) == document }) {
             AXUIElementSetAttributeValue(w, kAXMainAttribute as CFString, kCFBooleanTrue)
@@ -128,6 +187,13 @@ enum LinkedWindows {
         guard AXUIElementCopyAttributeValue(ax, kAXWindowsAttribute as CFString, &value) == .success,
               let list = value as? [AXUIElement] else { return [] }
         return list
+    }
+
+    private static func title(of window: AXUIElement) -> String? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &value) == .success
+        else { return nil }
+        return value as? String
     }
 
     /// The file of a window (AXDocument is a file URL string).

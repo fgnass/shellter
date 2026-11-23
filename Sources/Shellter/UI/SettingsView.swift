@@ -160,6 +160,7 @@ struct WindowSettingsView: View {
     @ObservedObject private var settings = AppearanceSettings.shared
     @ObservedObject private var layout = SidebarSettings.shared
     @ObservedObject private var chrome = WindowChrome.shared
+    @ObservedObject private var editors = EditorSettings.shared
     @State private var axAccess = LinkedWindows.hasAccess
 
     private var opacity: Double { settings.state.backgroundOpacity ?? chrome.opacity }
@@ -207,6 +208,27 @@ struct WindowSettingsView: View {
             }
             .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
                 if axAccess != LinkedWindows.hasAccess { axAccess = LinkedWindows.hasAccess }
+            }
+            Section("Editor") {
+                Picker("Open projects in", selection: Binding(
+                    get: { editors.editor?.bundleID ?? "" },
+                    set: { id in
+                        if id == "other" { editors.chooseOther() }
+                        else if let app = editors.choices().first(where: { $0.bundleID == id }) { editors.select(app) }
+                    }
+                )) {
+                    if editors.editor == nil { Text("None").tag("") }
+                    ForEach(editors.choices()) { app in
+                        Label { Text(app.name) } icon: { Image(nsImage: app.icon) }.tag(app.bundleID)
+                    }
+                    Divider()
+                    Text("Other…").tag("other")
+                }
+                Text("The context menu of a project opens its folder in this editor. VS Code, "
+                     + "Cursor and Windsurf bring the window of the folder to the front when it "
+                     + "is open already.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
             Section("Transparency") {
                 LabeledContent("Background opacity") {
