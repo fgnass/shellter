@@ -92,6 +92,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func findNext(_ sender: Any?) { store.selected?.view?.searchNext() }
     @objc func findPrevious(_ sender: Any?) { store.selected?.view?.searchPrevious() }
     @objc func closeTab(_ sender: Any?) { if let s = store.selected { store.close(s) } }
+    @objc func closeProject(_ sender: Any?) { if let s = store.selected { store.close(project: s.projectRoot) } }
+    @objc func reopenProject(_ sender: Any?) { if !store.reopenLastProject() { NSSound.beep() } }
     @objc func nextTab(_ sender: Any?) { store.selectRelative(1) }
     @objc func previousTab(_ sender: Any?) { store.selectRelative(-1) }
     @objc func nextNeedingInput(_ sender: Any?) { store.selectNextNeedingInput() }
@@ -135,6 +137,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         submenu("Shell", [
             item("New Tab", #selector(newTab(_:)), "t", target: self),
             item("Close Tab", #selector(closeTab(_:)), "w", target: self),
+            item("Close Project", #selector(closeProject(_:)), "w", [.command, .option], target: self),
+            item("Reopen Closed Project", #selector(reopenProject(_:)), "t", [.command, .shift], target: self),
             .separator(),
             item("New Agent Session", #selector(newAgentSession(_:)), "t", [.command, .option], target: self),
             item("Branch Session", #selector(branchSession(_:)), "d", [.command, .shift], target: self),

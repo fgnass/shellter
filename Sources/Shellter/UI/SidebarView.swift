@@ -34,6 +34,7 @@ struct SidebarView: View {
                 .help("New Tab (⌘T)")
                 .focusable(false)
                 Spacer()
+                recentMenu
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -48,6 +49,39 @@ struct SidebarView: View {
             }
         }
         .onDrop(of: [.fileURL], isTargeted: $dropTargeted, perform: openDropped)
+    }
+
+    /// Projects whose last tab closed. A click opens their tabs again.
+    private var recentMenu: some View {
+        let projects = store.recentProjects
+        return Menu {
+            if projects.isEmpty {
+                Text("No Closed Projects")
+            } else {
+                Section("Recently Closed") {
+                    ForEach(projects) { p in
+                        Button { store.reopen(p) } label: {
+                            Label {
+                                Text(p.name)
+                            } icon: {
+                                Image(nsImage: RecentProjectIcon.image(store.recentIcons[p.root],
+                                                                       name: p.name, key: p.root))
+                            }
+                        }
+                        .help(p.root)
+                    }
+                }
+                Divider()
+                Button("Clear Menu") { store.clearRecentProjects() }
+            }
+        } label: {
+            Image(systemName: "clock.arrow.circlepath")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Recently Closed Projects")
+        .focusable(false)
     }
 
     private func scrollArea(_ proxy: ScrollViewProxy) -> some View {
@@ -275,6 +309,8 @@ struct SidebarView: View {
         Button("Reveal in Finder") {
             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: group.id)
         }
+        Divider()
+        Button("Close Project") { store.close(project: group.id) }
     }
 
     /// Opens the project folder in the editor from the settings.
@@ -324,6 +360,32 @@ struct SidebarView: View {
         }
         Divider()
         Button("Close Tab") { store.close(s) }
+    }
+}
+
+/// A 16 pt icon of a recent project for menus: its project icon, else its initial
+/// on the project color (as ProjectIcon).
+enum RecentProjectIcon {
+    static func image(_ icon: NSImage?, name: String, key: String) -> NSImage {
+        let size = NSSize(width: 16, height: 16)
+        let image = NSImage(size: size, flipped: false) { rect in
+            if let icon {
+                icon.draw(in: rect)
+                return true
+            }
+            let color = ProjectColors.shared.color(for: key) ?? IconResolver.color(for: key)
+            color.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4).fill()
+            let letter = String(name.prefix(1)).uppercased() as NSString
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
+                .foregroundColor: NSColor.white,
+            ]
+            let s = letter.size(withAttributes: attrs)
+            letter.draw(at: NSPoint(x: rect.midX - s.width / 2, y: rect.midY - s.height / 2), withAttributes: attrs)
+            return true
+        }
+        return image
     }
 }
 

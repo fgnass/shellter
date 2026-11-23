@@ -182,15 +182,7 @@ final class Session: ObservableObject, Identifiable {
 
     // MARK: Persistence
 
-    struct Saved: Codable {
-        var id: UUID
-        var cwd: String
-        var title: String
-        var customTitle: String?
-        /// The coding agent that ran in the tab and its session, to resume it after a reboot.
-        var agent: String?
-        var agentSession: String?
-    }
+    typealias Saved = SavedTab
 
     var saved: Saved {
         Saved(id: id, cwd: cwd, title: rawTitle, customTitle: customTitle,
