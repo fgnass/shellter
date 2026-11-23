@@ -21,7 +21,7 @@ final class WindowChrome: ObservableObject {
         AppearanceSettings.shared.$state
             .map(\.sidebarStyle)
             .removeDuplicates()
-            .sink { [weak self] style in self?.sidebarStyle = style ?? .terminal }
+            .sink { [weak self] style in self?.sidebarStyle = (style ?? .terminal).effective }
             .store(in: &bag)
         update()
     }
@@ -51,6 +51,10 @@ final class WindowChrome: ObservableObject {
     func usesMaterial(in window: NSWindow) -> Bool {
         sidebarStyle == .system && !window.styleMask.contains(.fullScreen)
     }
+
+    /// The floating glass sidebar of macOS 26. It gets its own material, so the window
+    /// needs none.
+    var floatingSidebar: Bool { sidebarStyle == .floating }
 
     /// Makes the window see-through when the terminal background is not opaque.
     func apply(to window: NSWindow) {
@@ -88,8 +92,8 @@ struct SidebarBackground: View {
             switch chrome.sidebarStyle {
             case .terminal:
                 Color(nsColor: chrome.background).opacity(chrome.opacity)
-            case .system:
-                Color.clear   // the window's material shows through
+            case .system, .floating:
+                Color.clear   // the window's material or the glass panel shows through
             }
         }
         .ignoresSafeArea()

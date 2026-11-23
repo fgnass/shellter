@@ -164,20 +164,24 @@ struct WindowSettingsView: View {
 
     private var opacity: Double { settings.state.backgroundOpacity ?? chrome.opacity }
     private var blur: Int { settings.state.backgroundBlur ?? chrome.blur }
-    private var material: Bool { (settings.state.sidebarStyle ?? .terminal) == .system }
+    private var material: Bool { (settings.state.sidebarStyle ?? .terminal).effective == .system }
 
     var body: some View {
         Form {
             Section {
                 Picker("Sidebar", selection: Binding(
-                    get: { settings.state.sidebarStyle ?? .terminal },
+                    get: { (settings.state.sidebarStyle ?? .terminal).effective },
                     set: { settings.state.sidebarStyle = $0 == .terminal ? nil : $0 }
                 )) {
-                    ForEach(AppearanceSettings.SidebarStyle.allCases) { Text($0.label).tag($0) }
+                    ForEach(AppearanceSettings.SidebarStyle.available) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.radioGroup)
-                Text("Terminal colors: the sidebar has the background color of the theme. "
-                     + "macOS sidebar: the translucent system sidebar.")
+                Text(AppearanceSettings.SidebarStyle.available.contains(.floating)
+                     ? "Terminal colors: the sidebar has the background color of the theme. "
+                        + "macOS sidebar: the translucent system sidebar. "
+                        + "Floating glass: a glass panel over the terminal background."
+                     : "Terminal colors: the sidebar has the background color of the theme. "
+                        + "macOS sidebar: the translucent system sidebar.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }

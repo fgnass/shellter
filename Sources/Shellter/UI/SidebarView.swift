@@ -9,6 +9,8 @@ struct SidebarView: View {
     @State private var dropTargeted = false
     /// The tab or project that a dragged sidebar item is over.
     @State private var dragTarget: String?
+    /// The title bar over the sidebar and the New Tab button below it.
+    @State private var insets = EdgeInsets()
 
     var body: some View {
         // Cards or colored lines show which tabs belong to a project (Settings → Window).
@@ -55,6 +57,10 @@ struct SidebarView: View {
             .padding(.vertical, 6)
         }
         .scrollIndicators(.never)
+        // Rows that scroll under the title bar or the New Tab button fade out, so they
+        // do not collide with the traffic lights or the button (as in Apple Mail).
+        .mask { EdgeFade(insets: insets) }
+        .onGeometryChange(for: EdgeInsets.self) { $0.safeAreaInsets } action: { insets = $0 }
         .background(SidebarBackground())
         .focusable(false)
         .safeAreaInset(edge: .bottom) {
@@ -547,5 +553,33 @@ struct AgentIcon: View {
         .foregroundStyle(tint ?? Color(nsColor: agent.color))
         .frame(width: size, height: size)
         .help(agent.name)
+    }
+}
+
+/// A mask that hides content under the title bar and the bottom bar, with a short fade.
+private struct EdgeFade: View {
+    let insets: EdgeInsets
+
+    var body: some View {
+        VStack(spacing: 0) {
+            fade(insets.top, from: .top)
+            Color.black
+            fade(insets.bottom, from: .bottom)
+        }
+        .ignoresSafeArea()
+    }
+
+    @ViewBuilder
+    private func fade(_ inset: CGFloat, from edge: UnitPoint) -> some View {
+        if inset > 0 {
+            let gradient = LinearGradient(colors: [.clear, .black], startPoint: edge,
+                                          endPoint: edge == .top ? .bottom : .top)
+            VStack(spacing: 0) {
+                // Fully opaque again at the first row (6 pt below the inset).
+                if edge == .top { Color.clear.frame(height: max(0, inset - 6)) }
+                gradient.frame(height: 12)
+                if edge == .bottom { Color.clear.frame(height: max(0, inset - 6)) }
+            }
+        }
     }
 }
