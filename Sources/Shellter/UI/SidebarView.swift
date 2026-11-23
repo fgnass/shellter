@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -7,60 +8,20 @@ struct SidebarView: View {
     @ObservedObject private var projectColors = ProjectColors.shared
     @Environment(\.colorScheme) private var colorScheme
     @State private var dropTargeted = false
-    /// The tab or project that a dragged sidebar item is over.
-    @State private var dragTarget: String?
+    /// The item that the user drags inside the sidebar.
+    @State private var dragging: SidebarDragItem?
+    /// The drop zones under a dragged sidebar item, with the project of each zone.
+    /// Nested zones (a tab row in a project) can both be targeted, so this is not one value.
+    @State private var dropZones: [String: String] = [:]
     /// The title bar over the sidebar and the New Tab button below it.
     @State private var insets = EdgeInsets()
+    /// Tabs that need input but are scrolled out of view. Not observed here: it changes
+    /// while the user scrolls, and only the hints must update then.
+    @State private var hiddenWaiting = HiddenWaitingTabs()
 
     var body: some View {
         // Cards or colored lines show which tabs belong to a project (Settings → Window).
-        ScrollView {
-            VStack(spacing: 8) {
-                ForEach(store.groups) { group in
-                    switch layout.groupStyle {
-                    case .cards:
-                        VStack(alignment: .leading, spacing: 1) {
-                            header(of: group)
-                            rows(of: group)
-                        }
-                        .padding(.horizontal, 3)
-                        .padding(.bottom, 3)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.05)))
-                    case .lines:
-                        // The line in the project color runs below the project icon. Each tab
-                        // sits on it with a marker: the agent icon or, for a shell, a dot.
-                        VStack(alignment: .leading, spacing: 0) {
-                            header(of: group)
-                            let color = Color(nsColor: group.color(dark: colorScheme == .dark))
-                            let windows = store.windows(of: group)
-                            // The line ends at the marker of the last entry.
-                            let lastTab = windows.isEmpty ? group.sessions.last?.id : nil
-                            ForEach(group.sessions) { s in
-                                HStack(spacing: 2) {
-                                    LineMarker(session: s, color: color, last: s.id == lastTab)
-                                    row(for: s, icon: false)
-                                }
-                                .padding(.leading, 6)
-                            }
-                            ForEach(windows) { w in
-                                HStack(spacing: 2) {
-                                    WindowMarker(link: w.link, color: color, last: w.id == windows.last?.id)
-                                    windowRow(w, icon: false)
-                                }
-                                .padding(.leading, 6)
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-        }
-        .scrollIndicators(.never)
-        // Rows that scroll under the title bar or the New Tab button fade out, so they
-        // do not collide with the traffic lights or the button (as in Apple Mail).
-        .mask { EdgeFade(insets: insets) }
-        .onGeometryChange(for: EdgeInsets.self) { $0.safeAreaInsets } action: { insets = $0 }
+        ScrollViewReader { proxy in scrollArea(proxy) }
         .background(SidebarBackground())
         .focusable(false)
         .safeAreaInset(edge: .bottom) {
@@ -88,6 +49,90 @@ struct SidebarView: View {
         .onDrop(of: [.fileURL], isTargeted: $dropTargeted, perform: openDropped)
     }
 
+    private func scrollArea(_ proxy: ScrollViewProxy) -> some View {
+        ScrollView { groupList }
+        .scrollIndicators(.never)
+        // Rows that scroll under the title bar or the New Tab button fade out, so they
+        // do not collide with the traffic lights or the button (as in Apple Mail).
+        .mask { EdgeFade(insets: insets) }
+        .onGeometryChange(for: EdgeInsets.self) { $0.safeAreaInsets } action: {
+            insets = $0
+        }
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { hiddenWaiting.setViewport($0) }
+        // Tabs that need input above or below the visible area show a hint at that edge.
+        .overlay(alignment: .top) {
+            WaitingHint(tracker: hiddenWaiting, edge: .top) { store.selectedID = $0 }.offset(y: -4)
+        }
+        .overlay(alignment: .bottom) {
+            WaitingHint(tracker: hiddenWaiting, edge: .bottom) { store.selectedID = $0 }.offset(y: 4)
+        }
+        .onAppear { hiddenWaiting.attach(store) }
+        // The selected tab scrolls into view, e.g. after ⌘J or a click on a hint.
+        .onChange(of: store.selectedID) { _, id in
+            guard let id else { return }
+            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id) }
+        }
+    }
+
+    private var groupList: some View {
+        VStack(spacing: 8) {
+            ForEach(store.groups) { group in
+                Group {
+                switch layout.groupStyle {
+                case .cards:
+                    VStack(alignment: .leading, spacing: 1) {
+                        header(of: group)
+                        rows(of: group)
+                    }
+                    .padding(.horizontal, 3)
+                    .padding(.bottom, 3)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.05)))
+                case .lines:
+                    // The line in the project color runs below the project icon. Each tab
+                    // sits on it with a marker: the agent icon or, for a shell, a dot.
+                    VStack(alignment: .leading, spacing: 0) {
+                        header(of: group)
+                        let color = Color(nsColor: group.color(dark: colorScheme == .dark))
+                        let windows = store.windows(of: group)
+                        // The line ends at the marker of the last entry.
+                        let lastTab = windows.isEmpty ? group.sessions.last?.id : nil
+                        ForEach(group.sessions) { s in
+                            HStack(spacing: 2) {
+                                LineMarker(session: s, color: color, last: s.id == lastTab)
+                                row(for: s, icon: false)
+                            }
+                            .padding(.leading, 6)
+                        }
+                        ForEach(windows) { w in
+                            HStack(spacing: 2) {
+                                WindowMarker(link: w.link, color: color, last: w.id == windows.last?.id)
+                                windowRow(w, icon: false)
+                            }
+                            .padding(.leading, 6)
+                        }
+                    }
+                }
+                }
+                .contentShape(Rectangle())
+                .dropDestination(for: SidebarDragItem.self) { items, _ in
+                    drop(items, on: group.id)
+                } isTargeted: { setZone("group:\(group.id)", root: group.id, $0) }
+                .overlay(alignment: insertEdge(at: group.id) ?? .top) {
+                    if insertEdge(at: group.id) != nil {
+                        Capsule()
+                            .fill(Color.accentColor)
+                            .frame(height: 3)
+                            .padding(.horizontal, 2)
+                            .offset(y: insertEdge(at: group.id) == .top ? -5.5 : 5.5)
+                            .allowsHitTesting(false)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+    }
+
     /// Opens a tab for each folder that the user dropped (for example from the Finder).
     private func openDropped(_ providers: [NSItemProvider]) -> Bool {
         let providers = providers.filter { $0.canLoadObject(ofClass: URL.self) }
@@ -111,6 +156,43 @@ struct SidebarView: View {
         return true
     }
 
+    /// Starts a drag inside the sidebar. SwiftUI calls this when the drag starts.
+    private func startDrag(_ item: SidebarDragItem) -> SidebarDragItem {
+        dragging = item
+        dropZones = [:]
+        return item
+    }
+
+    private func setZone(_ key: String, root: String, _ over: Bool) {
+        if over { dropZones[key] = root } else { dropZones[key] = nil }
+    }
+
+    /// A dragged project moves to the place of the project `target`. A dragged tab moves
+    /// to the place of the tab `tab`, but only inside its own project.
+    private func drop(_ items: [SidebarDragItem], on target: String, tab: UUID? = nil) -> Bool {
+        defer { dragging = nil; dropZones = [:] }
+        guard let item = items.first else { return false }
+        if let root = item.group {
+            store.move(group: root, to: target)
+            return true
+        }
+        if let id = item.tab, let tab {
+            store.move(tab: id, to: tab)
+            return true
+        }
+        return false
+    }
+
+    /// Where the line shows that a dragged project lands: below the project `root` when
+    /// the project moves down, above it when it moves up. Nil when `root` is not the target.
+    private func insertEdge(at root: String) -> Alignment? {
+        guard let moving = dragging?.group, moving != root,
+              Set(dropZones.values) == [root] else { return nil }
+        let ids = store.groups.map(\.id)
+        guard let from = ids.firstIndex(of: moving), let to = ids.firstIndex(of: root) else { return nil }
+        return from < to ? .bottom : .top
+    }
+
     @ViewBuilder
     private func rows(of group: SessionGroup) -> some View {
         ForEach(group.sessions) { s in row(for: s, icon: true) }
@@ -132,39 +214,30 @@ struct SidebarView: View {
     }
 
     private func row(for s: Session, icon: Bool) -> some View {
-        SidebarRow(selected: s.id == store.selectedID, targeted: dragTarget == "tab:\(s.id)") {
+        SidebarRow(selected: s.id == store.selectedID,
+                   targeted: dragging?.tab != nil && dropZones["tab:\(s.id)"] != nil) {
             TabRow(session: s, condensed: layout.condensedTitles, showIcon: icon)
+        }
+        .id(s.id)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+            hiddenWaiting.setFrame($0, for: s.id)
         }
         .onTapGesture { store.select(s) }
         .contextMenu { menu(for: s) }
         // Drag a tab onto another tab of the same project to reorder.
-        .draggable(SidebarDragItem(tab: s.id))
+        // A project dropped on a tab moves to the place of the tab's project.
+        .draggable(startDrag(SidebarDragItem(tab: s.id)))
         .dropDestination(for: SidebarDragItem.self) { items, _ in
-            guard let id = items.first?.tab else { return false }
-            store.move(tab: id, to: s.id)
-            return true
-        } isTargeted: { over in
-            if over { dragTarget = "tab:\(s.id)" } else if dragTarget == "tab:\(s.id)" { dragTarget = nil }
-        }
+            drop(items, on: s.projectRoot, tab: s.id)
+        } isTargeted: { setZone("tab:\(s.id)", root: s.projectRoot, $0) }
     }
 
-    /// Drag a project header onto another one to reorder the projects.
+    /// Drag a project header onto another project to reorder the projects.
     private func header(of group: SessionGroup) -> some View {
         GroupHeader(group: group)
             .contextMenu { colorMenu(for: group) }
-            .background(
-                RoundedRectangle(cornerRadius: 7)
-                    .fill(Color.accentColor.opacity(dragTarget == "group:\(group.id)" ? 0.2 : 0))
-            )
             .contentShape(Rectangle())
-            .draggable(SidebarDragItem(group: group.id))
-            .dropDestination(for: SidebarDragItem.self) { items, _ in
-                guard let root = items.first?.group else { return false }
-                store.move(group: root, to: group.id)
-                return true
-            } isTargeted: { over in
-                if over { dragTarget = "group:\(group.id)" } else if dragTarget == "group:\(group.id)" { dragTarget = nil }
-            }
+            .draggable(startDrag(SidebarDragItem(group: group.id)))
     }
 
     @ViewBuilder
@@ -553,6 +626,95 @@ struct AgentIcon: View {
         .foregroundStyle(tint ?? Color(nsColor: agent.color))
         .frame(width: size, height: size)
         .help(agent.name)
+    }
+}
+
+/// Finds the tabs that need input but are scrolled out of the sidebar's visible area
+/// (above the title bar inset or below the New Tab bar).
+final class HiddenWaitingTabs: ObservableObject {
+    struct Hidden: Equatable {
+        /// The nearest hidden tab in each direction, and how many tabs are hidden there.
+        var above: UUID?
+        var aboveCount = 0
+        var below: UUID?
+        var belowCount = 0
+    }
+
+    @Published private(set) var hidden = Hidden()
+    private var frames: [UUID: CGRect] = [:]
+    private var viewport = CGRect.infinite
+    private weak var store: SessionStore?
+    private var subscription: AnyCancellable?
+
+    func attach(_ store: SessionStore) {
+        guard self.store !== store else { return }
+        self.store = store
+        // The store changes when a tab starts or stops to need input.
+        subscription = store.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in self?.update() }
+        update()
+    }
+
+    func setFrame(_ frame: CGRect, for id: UUID) { frames[id] = frame; update() }
+    func setViewport(_ frame: CGRect) { viewport = frame; update() }
+
+    private func update() {
+        guard let store else { return }
+        // Row and viewport frames are global: they stay correct while the list scrolls.
+        // The scroll view's frame already excludes the title bar and the New Tab bar
+        // (its safe area insets lie outside of it).
+        let top = viewport.minY, bottom = viewport.maxY
+        var h = Hidden()
+        for s in store.sessions where s.activity == .needsInput {
+            guard let f = frames[s.id] else { continue }
+            if f.midY < top {
+                h.aboveCount += 1
+                if h.above.flatMap({ frames[$0] }).map({ f.midY > $0.midY }) ?? true { h.above = s.id }
+            } else if f.midY > bottom {
+                h.belowCount += 1
+                if h.below.flatMap({ frames[$0] }).map({ f.midY < $0.midY }) ?? true { h.below = s.id }
+            }
+        }
+        if h != hidden { hidden = h }
+    }
+}
+
+/// A small capsule at the top or bottom edge of the sidebar: tabs that need input are
+/// scrolled out of view there. A click selects the nearest of them.
+private struct WaitingHint: View {
+    @ObservedObject var tracker: HiddenWaitingTabs
+    let edge: VerticalEdge
+    let select: (UUID) -> Void
+
+    var body: some View {
+        let id = edge == .top ? tracker.hidden.above : tracker.hidden.below
+        let count = edge == .top ? tracker.hidden.aboveCount : tracker.hidden.belowCount
+        ZStack {
+            if let id {
+                Button { select(id) } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bell.fill").foregroundStyle(.orange)
+                        Text("\(count)").monospacedDigit()
+                        Image(systemName: edge == .top ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 3)
+                    .background(.regularMaterial, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Color.orange.opacity(0.6), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.15), radius: 3, y: 1)
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .focusable(false)
+                .help(count == 1 ? "A tab \(edge == .top ? "above" : "below") needs your input"
+                                 : "\(count) tabs \(edge == .top ? "above" : "below") need your input")
+                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: id)
     }
 }
 
