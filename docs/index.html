@@ -110,7 +110,7 @@
       <h2 id="h-looks">Make it yours. The sidebar follows.</h2>
       <p>Shellter comes with 12 coding fonts and the 450+ themes of Ghostty. It also finds the themes of VS Code, Cursor and other editors, and it can follow the theme of your editor. The sidebar takes the colors of the terminal.</p>
       <ul class="points">
-        <li>Transparency and blur, with the translucent macOS sidebar.</li>
+        <li>Transparency with frosted glass, and three sidebar styles: terminal colors, the macOS sidebar, or floating glass on macOS 26.</li>
         <li>Import <code>.itermcolors</code> or VS Code theme files.</li>
         <li>Shellter reads your Ghostty config too.</li>
       </ul>
@@ -119,6 +119,44 @@
       <img class="shot" src="assets/img/shot-looks.jpg" width="2640" height="1400" loading="lazy" decoding="async" alt="The same Shellter window in the light theme Rose Pine Dawn with the font Maple Mono; the sidebar is light too.">
       <figcaption class="note">The same window in Rose Pine Dawn and Maple Mono.</figcaption>
     </figure>
+  </section>
+
+  <!-- COPY -->
+  <section class="sec" id="copy" aria-labelledby="h-copy">
+    <div class="sec-copy">
+      <p class="kicker">Copy and paste</p>
+      <h2 id="h-copy">Copy from an agent. Paste clean text.</h2>
+      <p>Coding agents draw their answers for the terminal: with markers, indents, quote bars and a line break wherever a line is full. Copy that into a mail or a chat, and you clean it up by hand. In a tab with a coding agent, Shellter does that for you.</p>
+      <ul class="points">
+        <li>Markers, indents and quote bars go. Paragraphs, lists and tables stay.</li>
+        <li>Works with Claude Code, Codex and Antigravity.</li>
+        <li><kbd>⌥⌘C</kbd> copies the text as the terminal shows it.</li>
+      </ul>
+    </div>
+    <div class="sec-demo copy-demo" aria-label="The same draft before and after copying">
+      <div class="copy-card">
+        <span class="copy-label">In the terminal</span>
+<pre class="copy-term">⏺ Here is the draft:
+
+  <i>▎</i> Hi Sam, the new server is ready. Could<i>↵</i>
+  <i>▎</i> you check two reports on Friday before<i>↵</i>
+  <i>▎</i> we switch the traffic?
+  <i>▎</i>
+  <i>▎</i> 1. Save the totals of two reports from<i>↵</i>
+  <i>▎</i> the last import.
+  <i>▎</i> 2. Compare them after the switch.</pre>
+      </div>
+      <span class="copy-step"><kbd>⌘C</kbd></span>
+      <div class="copy-card">
+        <span class="copy-label">In your clipboard</span>
+<pre class="copy-clip">Here is the draft:
+
+Hi Sam, the new server is ready. Could you check two reports on Friday before we switch the traffic?
+
+1. Save the totals of two reports from the last import.
+2. Compare them after the switch.</pre>
+      </div>
+    </div>
   </section>
 
   <!-- COMPARE -->
