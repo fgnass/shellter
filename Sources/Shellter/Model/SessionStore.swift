@@ -130,6 +130,12 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.updateDockBadge() }
             .store(in: &bag)
+        // The agent starts or stops to work: the tab was active just now.
+        s.$activity
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak s] _ in s?.lastActivity = Date() }
+            .store(in: &bag)
         // Forward session changes so the sidebar refreshes.
         s.objectWillChange
             .receive(on: DispatchQueue.main)
@@ -252,6 +258,7 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
 
     private func selectionDidChange() {
         guard let s = selected else { return }
+        s.lastActivity = Date()
         s.clearAttention()
         onShow?(s)
         scheduleSave()
@@ -379,13 +386,21 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
     }
 
     /// The windows of other apps in a project: apps first, then files, each once.
+    /// When more tabs share a window (e.g. two agents use the same browser), the window
+    /// belongs to the tab with the latest activity, so a click shows that tab's session.
     func windows(of group: SessionGroup) -> [ProjectWindow] {
-        var seen = Set<String>()
+        var index: [String: Int] = [:]
         var result: [ProjectWindow] = []
         for kind in [appWindows, documentWindows] {
             for s in group.sessions {
-                for link in kind[s.id] ?? [] where seen.insert(link.id).inserted {
-                    result.append(ProjectWindow(link: link, session: s))
+                for link in kind[s.id] ?? [] {
+                    let w = ProjectWindow(link: link, session: s)
+                    if let i = index[link.id] {
+                        if s.lastActivity > result[i].session.lastActivity { result[i] = w }
+                    } else {
+                        index[link.id] = result.count
+                        result.append(w)
+                    }
                 }
             }
         }

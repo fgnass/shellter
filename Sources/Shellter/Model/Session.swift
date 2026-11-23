@@ -14,6 +14,9 @@ final class Session: ObservableObject, Identifiable {
     @Published var cwd: String
     @Published private(set) var projectRoot: String
     @Published var activity: ActivityState = .idle
+    /// When the agent or the user last did something in this tab (in memory only).
+    /// When more tabs share a window, the window belongs to the tab with the latest activity.
+    var lastActivity = Date.distantPast
     /// Listening ports that the sidebar shows (see PortClassifier).
     @Published var ports: [UInt16] = []
     /// All listening ports of the tab's processes, with their owners.
