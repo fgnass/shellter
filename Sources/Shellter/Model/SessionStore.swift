@@ -136,11 +136,21 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
             .dropFirst()
             .sink { [weak s] _ in s?.lastActivity = Date() }
             .store(in: &bag)
-        // Forward session changes so the sidebar refreshes.
-        s.objectWillChange
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] in self?.objectWillChange.send() }
-            .store(in: &bag)
+        // Forward the session changes that the sidebar itself uses (groups, project icon,
+        // menus, window owner). The rows observe their sessions. Titles and spinner ticks of
+        // a working agent must not refresh the sidebar: that rebuilds an open context menu.
+        Publishers.MergeMany(
+            s.$projectRoot.removeDuplicates().map { _ in () }.eraseToAnyPublisher(),
+            s.$dirIcon.removeDuplicates(by: ===).map { _ in () }.eraseToAnyPublisher(),
+            s.$agent.removeDuplicates().map { _ in () }.eraseToAnyPublisher(),
+            s.$activity.removeDuplicates().map { _ in () }.eraseToAnyPublisher(),
+            s.$ports.removeDuplicates().map { _ in () }.eraseToAnyPublisher(),
+            s.$serverPort.removeDuplicates().map { _ in () }.eraseToAnyPublisher()
+        )
+        .dropFirst(6)
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] in self?.objectWillChange.send() }
+        .store(in: &bag)
     }
 
     func close(_ s: Session, force: Bool = false) {
