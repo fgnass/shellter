@@ -94,13 +94,11 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         window.delegate = self
 
         let sidebar = NSHostingController(rootView: SidebarView(store: store))
-        // A plain item, not a sidebar item: the sidebar item adds the system material,
-        // and Shellter draws its own background (see SidebarBackground).
-        let sidebarItem = NSSplitViewItem(viewController: sidebar)
+        let sidebarItem = Self.makeSidebarItem(sidebar, floating: WindowChrome.shared.floatingSidebar)
         self.sidebarItem = sidebarItem
-        sidebarItem.minimumThickness = 180
-        sidebarItem.maximumThickness = 400
-        sidebarItem.canCollapse = true
+        // The floating sidebar reaches up next to the traffic lights only in a window
+        // with a toolbar (unified style; not with unifiedCompact).
+        if WindowChrome.shared.floatingSidebar { window.toolbar = NSToolbar() }
         let contentItem = NSSplitViewItem(viewController: container)
         split.addSplitViewItem(sidebarItem)
         split.addSplitViewItem(contentItem)
@@ -128,10 +126,42 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         applyChrome()
     }
 
+    /// A sidebar item gives the floating glass sidebar of macOS 26. Otherwise a plain item:
+    /// the sidebar item adds the system material, and Shellter draws its own background
+    /// (see SidebarBackground).
+    private static func makeSidebarItem(_ vc: NSViewController, floating: Bool) -> NSSplitViewItem {
+        let item = floating ? NSSplitViewItem(sidebarWithViewController: vc)
+                            : NSSplitViewItem(viewController: vc)
+        item.minimumThickness = 180
+        item.maximumThickness = 400
+        item.canCollapse = true
+        return item
+    }
+
+    /// Replaces the sidebar item when the sidebar style changes between floating and flat.
+    private func updateSidebarItem() {
+        let floating = WindowChrome.shared.floatingSidebar
+        guard (sidebarItem.behavior == .sidebar) != floating else { return }
+        let old = sidebarItem!
+        // The width of the split pane: the floating sidebar's own view is inset in it.
+        let width = split.splitView.arrangedSubviews.first?.frame.width ?? old.viewController.view.frame.width
+        let collapsed = old.isCollapsed
+        split.removeSplitViewItem(old)
+        let item = Self.makeSidebarItem(old.viewController, floating: floating)
+        item.isCollapsed = collapsed
+        split.insertSplitViewItem(item, at: 0)
+        sidebarItem = item
+        window?.toolbar = floating ? NSToolbar() : nil
+        if !collapsed { split.splitView.setPosition(width, ofDividerAt: 0) }
+    }
+
     private func applyChrome() {
         guard let window else { return }
         WindowChrome.shared.apply(to: window)
-        root.setMaterial(WindowChrome.shared.sidebarStyle == .system)
+        updateSidebarItem()
+        let chrome = WindowChrome.shared
+        root.setMaterial(chrome.sidebarStyle == .system)
+        root.setBackdrop(chrome.floatingSidebar ? chrome.background.withAlphaComponent(chrome.opacity) : nil)
         split.splitView.needsDisplay = true
     }
 
@@ -218,6 +248,37 @@ final class ChromeRootController: NSViewController {
     func setMaterial(_ on: Bool) {
         material.isHidden = !on
     }
+
+    /// The terminal background behind the floating sidebar, so the terminal seems to
+    /// continue under the glass panel. Only behind the sidebar pane: the terminal draws
+    /// its own (maybe translucent) background.
+    private let backdrop: NSView = {
+        let v = NSView()
+        v.wantsLayer = true
+        v.isHidden = true
+        return v
+    }()
+    private var resizeObserver: NSObjectProtocol?
+
+    func setBackdrop(_ color: NSColor?) {
+        if backdrop.superview == nil {
+            view.addSubview(backdrop, positioned: .above, relativeTo: material)
+            resizeObserver = NotificationCenter.default.addObserver(
+                forName: NSSplitView.didResizeSubviewsNotification, object: split.splitView, queue: .main
+            ) { [weak self] _ in self?.layoutBackdrop() }
+        }
+        backdrop.isHidden = color == nil
+        backdrop.layer?.backgroundColor = color?.cgColor
+        layoutBackdrop()
+    }
+
+    private func layoutBackdrop() {
+        guard !backdrop.isHidden, let pane = split.splitView.arrangedSubviews.first else { return }
+        let width = split.splitViewItems.first?.isCollapsed == true ? 0
+            : pane.frame.width + split.splitView.dividerThickness
+        backdrop.frame = NSRect(x: 0, y: 0, width: width, height: view.bounds.height)
+        backdrop.autoresizingMask = [.height]
+    }
 }
 
 /// A divider that fits the terminal colors. It fills its gap first, so the desktop
@@ -229,6 +290,8 @@ final class ChromeSplitView: NSSplitView {
 
     override func drawDivider(in rect: NSRect) {
         let chrome = WindowChrome.shared
+        // The floating sidebar has no divider line: the backdrop fills the gap.
+        if chrome.floatingSidebar { return }
         if chrome.sidebarStyle == .terminal {
             chrome.background.withAlphaComponent(chrome.opacity).setFill()
             rect.fill(using: .copy)

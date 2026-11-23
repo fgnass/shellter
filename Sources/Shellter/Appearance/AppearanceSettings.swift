@@ -24,9 +24,32 @@ final class AppearanceSettings: ObservableObject {
     }
 
     enum SidebarStyle: String, Codable, CaseIterable, Identifiable {
-        case terminal, system
+        /// The sidebar has the background color of the theme.
+        case terminal
+        /// The translucent macOS sidebar material, flat at the window edge.
+        case system
+        /// The floating glass sidebar of macOS 26 over the terminal background.
+        case floating
         var id: String { rawValue }
-        var label: String { self == .terminal ? "Terminal colors" : "macOS sidebar" }
+        var label: String {
+            switch self {
+            case .terminal: "Terminal colors"
+            case .system: "macOS sidebar"
+            case .floating: "Floating glass"
+            }
+        }
+
+        /// The styles that this macOS version supports.
+        static var available: [SidebarStyle] {
+            if #available(macOS 26, *) { return allCases }
+            return [.terminal, .system]
+        }
+
+        /// The style to use: before macOS 26, floating glass falls back to the macOS sidebar.
+        var effective: SidebarStyle {
+            if #available(macOS 26, *) { return self }
+            return self == .floating ? .system : self
+        }
     }
 
     @Published var state = State() {
