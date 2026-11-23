@@ -159,7 +159,7 @@ final class Session: ObservableObject, Identifiable {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         guard root != home, root != "/" else { dirIcon = nil; return }
         IconResolver.shared.directoryIcon(for: root) { [weak self] img in
-            guard let self, self.projectRoot == root else { return }
+            guard let self, self.projectRoot == root, self.dirIcon !== img else { return }
             self.dirIcon = img
         }
     }

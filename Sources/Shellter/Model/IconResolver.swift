@@ -5,7 +5,13 @@ final class IconResolver {
     static let shared = IconResolver()
 
     private let queue = DispatchQueue(label: "shellter.icons", qos: .utility)
-    private var dirCache: [String: NSImage?] = [:]
+    private struct DirEntry {
+        var image: NSImage?
+        var source: URL?
+        var modified: Date?
+        var checked: Date
+    }
+    private var dirCache: [String: DirEntry] = [:]
     private var serverCache: [UInt16: (image: NSImage?, time: Date)] = [:]
     private let session: URLSession = {
         let c = URLSessionConfiguration.ephemeral
@@ -49,15 +55,32 @@ final class IconResolver {
         ".nuxt", ".svelte-kit", "target", ".venv", "venv", "__pycache__", "coverage", ".turbo",
     ]
 
-    func directoryIcon(for root: String, completion: @escaping (NSImage?) -> Void) {
+    /// The icon of a project directory. A cached icon stays valid while its file has the same
+    /// modification date; after a change (or when no icon was found) the directory is searched
+    /// again, at most once in `recheck` seconds.
+    func directoryIcon(for root: String, recheck: TimeInterval = 5,
+                       completion: @escaping (NSImage?) -> Void) {
         queue.async {
-            if let cached = self.dirCache[root] {
-                DispatchQueue.main.async { completion(cached) }
-                return
+            let now = Date()
+            if let e = self.dirCache[root] {
+                if now.timeIntervalSince(e.checked) < recheck {
+                    DispatchQueue.main.async { completion(e.image) }
+                    return
+                }
+                if let src = e.source, Self.modified(src) == e.modified {
+                    self.dirCache[root]?.checked = now
+                    DispatchQueue.main.async { completion(e.image) }
+                    return
+                }
+                if e.source == nil, now.timeIntervalSince(e.checked) < 30 {
+                    DispatchQueue.main.async { completion(nil) }
+                    return
+                }
             }
-            let image = Self.findDirectoryIcon(root)
-            self.dirCache[root] = image
-            DispatchQueue.main.async { completion(image) }
+            let found = Self.findDirectoryIcon(root)
+            self.dirCache[root] = DirEntry(image: found?.image, source: found?.url,
+                                           modified: found.flatMap { Self.modified($0.url) }, checked: now)
+            DispatchQueue.main.async { completion(found?.image) }
         }
     }
 
@@ -65,12 +88,27 @@ final class IconResolver {
         queue.async { self.dirCache[root] = nil }
     }
 
-    private static func findDirectoryIcon(_ root: String) -> NSImage? {
+    /// The modification date of a file, or the newest one inside a folder (`.icon` documents).
+    private static func modified(_ url: URL) -> Date? {
+        let fm = FileManager.default
+        guard let attrs = try? fm.attributesOfItem(atPath: url.path) else { return nil }
+        var newest = attrs[.modificationDate] as? Date
+        if attrs[.type] as? FileAttributeType == .typeDirectory,
+           let e = fm.enumerator(at: url, includingPropertiesForKeys: [.contentModificationDateKey]) {
+            for case let f as URL in e {
+                if let d = try? f.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
+                   newest == nil || d > newest! { newest = d }
+            }
+        }
+        return newest
+    }
+
+    private static func findDirectoryIcon(_ root: String) -> (image: NSImage, url: URL)? {
         let base = URL(fileURLWithPath: root)
         let fm = FileManager.default
         for rel in candidates {
             let url = base.appendingPathComponent(rel)
-            if fm.fileExists(atPath: url.path), let img = loadImage(url) { return img }
+            if fm.fileExists(atPath: url.path), let img = loadImage(url) { return (img, url) }
         }
         // Shallow search for favicons, app icons and Xcode asset catalogs.
         var best: (url: URL, score: Int)?
@@ -106,7 +144,7 @@ final class IconResolver {
             if best == nil || score > best!.score { best = (url, score) }
         }
         walk(base, depth: 0)
-        if let best, let img = loadImage(best.url) { return img }
+        if let best, let img = loadImage(best.url) { return (img, best.url) }
         return nil
     }
 

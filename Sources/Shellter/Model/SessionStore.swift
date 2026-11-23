@@ -316,6 +316,8 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
     // MARK: Polling (processes, ports, favicons, spinner decay)
 
     private func poll() {
+        // Pick up changed project icons. The resolver only looks at the disk every few seconds.
+        for s in sessions { s.loadDirectoryIcon() }
         // With zmx the shell runs on the daemon's PTY, not on the terminal's. Find it via
         // the shell's PID. Without zmx use the terminal's TTY and foreground process.
         if Zmx.isAvailable {
