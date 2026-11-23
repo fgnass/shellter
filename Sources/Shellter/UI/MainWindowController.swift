@@ -79,6 +79,13 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     private var sidebarItem: NSSplitViewItem!
     private var root: ChromeRootController!
     private var bag = Set<AnyCancellable>()
+    /// Compact Mode: the selected terminal in a small floating panel instead of the window.
+    private lazy var compact: CompactPanelController = {
+        let c = CompactPanelController()
+        c.onExpand = { [weak self] in self?.exitCompact() }
+        return c
+    }()
+    private(set) var isCompact = false
 
     init(store: SessionStore) {
         self.store = store
@@ -171,8 +178,37 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     required init?(coder: NSCoder) { fatalError("not supported") }
 
     func show(_ s: Session) {
-        container.show(terminal(for: s))
+        let t = terminal(for: s)
+        if isCompact {
+            // The panel shows the new tab; the old one goes back to the window (hidden).
+            if let old = compact.terminal, old !== t { container.add(old) }
+            compact.show(t, of: s)
+        } else {
+            container.show(t)
+        }
         updateTitle()
+    }
+
+    // MARK: Compact Mode
+
+    @objc func toggleCompact(_ sender: Any?) {
+        if isCompact { exitCompact() } else { enterCompact() }
+    }
+
+    private func enterCompact() {
+        guard let s = store.selected else { return }
+        let t = terminal(for: s)
+        isCompact = true
+        compact.show(t, of: s)
+        window?.orderOut(nil)
+    }
+
+    func exitCompact() {
+        guard isCompact else { return }
+        isCompact = false
+        if let t = compact.close() { container.add(t) }
+        window?.makeKeyAndOrderFront(nil)
+        showSelected()
     }
 
     /// Creates the terminal of a new tab hidden in the container, so it starts in the size

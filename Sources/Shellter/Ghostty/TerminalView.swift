@@ -295,6 +295,11 @@ final class TerminalView: NSView {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        // In the compact panel the scroll wheel moves the panel's viewport on the terminal.
+        if let scroll = enclosingScrollView {
+            scroll.scrollWheel(with: event)
+            return
+        }
         guard let surface else { return }
         var x = event.scrollingDeltaX
         var y = event.scrollingDeltaY
@@ -574,6 +579,15 @@ final class TerminalView: NSView {
     }
 
     @objc func copyRawText(_ sender: Any?) { performBinding("copy_to_clipboard") }
+
+    /// The empty space in points below the last row: the part of the view that does not
+    /// fit a whole row. Ghostty splits it between the top and the bottom.
+    var bottomPadding: CGFloat {
+        guard let surface, let scale = window?.backingScaleFactor else { return 0 }
+        let size = ghostty_surface_size(surface)
+        let rows = CGFloat(size.rows) * CGFloat(size.cell_height_px) / scale
+        return max(0, (bounds.height - rows) / 2)
+    }
 
     private func cleanedSelection() -> String? {
         guard let surface, ghostty_surface_has_selection(surface) else { return nil }

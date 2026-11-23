@@ -49,7 +49,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        windowController?.showWindow(nil)
+        // A click on the Dock icon brings the window back, also from Compact Mode.
+        if windowController?.isCompact == true { windowController?.exitCompact() }
+        else { windowController?.showWindow(nil) }
         return true
     }
 
@@ -95,6 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func nextNeedingInput(_ sender: Any?) { store.selectNextNeedingInput() }
     @objc func selectTabByTag(_ sender: NSMenuItem) { store.selectIndex(sender.tag) }
     @objc func toggleSidebar(_ sender: Any?) { windowController?.toggleSidebar(sender) }
+    @objc func toggleCompact(_ sender: Any?) { windowController?.toggleCompact(sender) }
     @objc func showSettings(_ sender: Any?) { SettingsWindowController.open() }
 
     // MARK: Menu
@@ -150,6 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         submenu("View", [
             item("Toggle Sidebar", #selector(toggleSidebar(_:)), "s", [.command, .control], target: self),
+            item("Compact Mode", #selector(toggleCompact(_:)), "k", [.command, .shift], target: self),
         ])
 
         var windowItems: [NSMenuItem] = [
