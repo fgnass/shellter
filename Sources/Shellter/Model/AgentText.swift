@@ -24,7 +24,7 @@ enum AgentText {
 
         // Markers in front of a message or a tool result: replace them with spaces of the
         // same width, so the indent of the following lines still matches.
-        for i in lines.indices {
+        for i in lines.indices where i > 0 || firstColumn == 0 {
             for marker in markers where lines[i].text.hasPrefix(marker) {
                 lines[i].text = String(repeating: " ", count: width(marker))
                     + lines[i].text.dropFirst(marker.count)
@@ -34,7 +34,11 @@ enum AgentText {
 
         removeCommonIndent(&lines)
         // Quotes: remove the bar in front of each line (drafts of messages are often quotes).
-        for i in lines.indices where lines[i].text.hasPrefix(quoteBar) {
+        // Codex shows Markdown quotes ("> "): only a block of such lines is a quote.
+        let markdown = lines.map { $0.text == ">" || $0.text.hasPrefix("> ") }
+        for i in lines.indices {
+            let inBlock = markdown[i] && ((i > 0 && markdown[i - 1]) || (i + 1 < lines.count && markdown[i + 1]))
+            guard inBlock || isQuoted(lines[i].text) else { continue }
             lines[i].text = String(lines[i].text.dropFirst())
             if lines[i].text.hasPrefix(" ") { lines[i].text.removeFirst() }
         }
@@ -45,7 +49,9 @@ enum AgentText {
         for line in lines {
             if let p = previous, var last = out.last,
                isWrapped(p, before: line.text, columns: columns) {
-                last += " " + line.text.drop(while: { $0 == " " })
+                // A word with a hyphen can be broken after the hyphen.
+                let hyphen = last.hasSuffix("-") && last.dropLast().last?.isLetter == true
+                last += (hyphen ? "" : " ") + line.text.drop(while: { $0 == " " })
                 out[out.count - 1] = last
             } else {
                 out.append(line.text)
@@ -53,6 +59,8 @@ enum AgentText {
             previous = line
         }
         while out.last?.isEmpty == true { out.removeLast() }
+        // The indent of the first line is left over from a marker or the selection start.
+        if let first = out.first { out[0] = String(first.drop(while: { $0 == " " })) }
         return out.joined(separator: "\n")
     }
 
@@ -61,16 +69,28 @@ enum AgentText {
         var endColumn = 0
     }
 
-    private static let markers = ["⏺ ", "● ", "  ⎿  "]
-    private static let quoteBar = "▎"
+    /// Claude Code: "⏺" in front of a message, "⎿" in front of a tool result. Codex: "•".
+    private static let markers = ["⏺ ", "● ", "  ⎿  ", "• "]
+    /// Claude Code shows quotes with "▎", Antigravity with "│".
+    private static let quoteBars: Set<Character> = ["▎", "│"]
+
+    /// "│" also draws tables: then the line has more box drawing characters.
+    private static func isQuoted(_ s: String) -> Bool {
+        guard let first = s.first, quoteBars.contains(first) else { return false }
+        return first == "▎" || !s.dropFirst().unicodeScalars.contains { (0x2500...0x257F).contains($0.value) }
+    }
+
+    /// Some agents break lines a few cells before the right edge (Antigravity: 2).
+    private static let wrapTolerance = 3
 
     /// True if the line was full: the first word of the next line did not fit after it.
+    /// A line that ends far from the right edge has a real line break.
     private static func isWrapped(_ line: Line, before next: String, columns: Int) -> Bool {
         let body = next.drop(while: { $0 == " " })
         guard !line.text.isEmpty, !body.isEmpty, !startsBlock(String(body)),
               !isTableLine(line.text) else { return false }
         let word = body.prefix(while: { $0 != " " })
-        return line.endColumn + 1 + width(String(word)) > columns
+        return line.endColumn + 1 + width(String(word)) > columns - wrapTolerance
     }
 
     /// A list item, a heading or a table row starts on a new line.
