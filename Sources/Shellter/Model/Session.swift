@@ -58,6 +58,7 @@ final class Session: ObservableObject, Identifiable {
         } else {
             v = TerminalView(frame: frame, workingDirectory: cwd, initialInput: initialInput)
         }
+        v.cleansCopiedText = { [weak self] in self?.agent != nil }
         view = v
         return v
     }

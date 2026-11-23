@@ -139,6 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         submenu("Edit", [
             item("Copy", #selector(TerminalView.copy(_:)), "c"),
+            item("Copy Raw Text", #selector(TerminalView.copyRawText(_:)), "c", [.command, .option]),
             item("Paste", #selector(TerminalView.paste(_:)), "v"),
             item("Select All", #selector(NSResponder.selectAll(_:)), "a"),
             .separator(),
