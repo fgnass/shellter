@@ -16,13 +16,14 @@ enum AgentSession {
             }
             return nil
         case .codex:
-            // Codex keeps its rollout file open: rollout-<time>-<uuid>.jsonl.
+            // Older Codex versions keep their rollout file open: rollout-<time>-<uuid>.jsonl.
             for pid in pids {
                 for path in ProcessInspector.openFiles(of: pid) {
                     if let id = codexSessionID(fromPath: path) { return id }
                 }
             }
-            return nil
+            // Newer versions write it in a background daemon: use the open thread in this folder.
+            return codexOpenThread(cwd: cwd)
         case .pi:
             return newestFile(in: piSessionDirectory(for: cwd))?.path
         case .antigravity:
@@ -62,6 +63,30 @@ enum AgentSession {
         }
     }
 
+    /// The file with the conversation of a session, for example to show it to another agent.
+    /// Nil when the agent keeps no such file or the file is gone.
+    static func transcript(_ agent: Agent, session: String?) -> URL? {
+        guard let session else { return nil }
+        let fm = FileManager.default
+        switch agent {
+        case .claude:
+            // ~/.claude/projects/<folder from the cwd>/<id>.jsonl
+            let projects = home.appendingPathComponent(".claude/projects", isDirectory: true)
+            let dirs = (try? fm.contentsOfDirectory(at: projects, includingPropertiesForKeys: nil)) ?? []
+            return dirs.lazy.map { $0.appendingPathComponent("\(session).jsonl") }
+                .first { fm.fileExists(atPath: $0.path) }
+        case .codex:
+            return codexRollout(session)?.url
+        case .pi:
+            return fm.fileExists(atPath: session) ? URL(fileURLWithPath: session) : nil
+        case .antigravity:
+            let url = home.appendingPathComponent(".gemini/antigravity-cli/conversations/\(session).db")
+            return fm.fileExists(atPath: url.path) ? url : nil
+        case .opencode:
+            return nil
+        }
+    }
+
     /// The name of a branch: "Branch: <title>", short enough for the prompt box.
     static func branchName(title: String) -> String {
         let t = title.trimmingCharacters(in: .whitespaces)
@@ -78,6 +103,65 @@ enum AgentSession {
         guard name.hasPrefix("rollout-"), name.hasSuffix(".jsonl"), name.count > 42 else { return nil }
         let id = String(name.dropLast(6).suffix(36))
         return UUID(uuidString: id) != nil ? id : nil
+    }
+
+    /// Rollout files and their folders, by session ID. Only used on the poll queue and on
+    /// drops (main queue), hence the lock.
+    private static var codexRollouts: [String: (url: URL, cwd: String)] = [:]
+    private static let codexLock = NSLock()
+
+    /// The rollout file of a Codex session and the folder that it runs in:
+    /// ~/.codex/sessions/<yyyy>/<mm>/<dd>/rollout-<time>-<id>.jsonl. The newest days come first.
+    static func codexRollout(_ id: String) -> (url: URL, cwd: String)? {
+        codexLock.lock()
+        defer { codexLock.unlock() }
+        if let hit = codexRollouts[id], FileManager.default.fileExists(atPath: hit.url.path) { return hit }
+        let fm = FileManager.default
+        func sorted(_ dir: URL) -> [URL] {
+            ((try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [])
+                .sorted { $0.lastPathComponent > $1.lastPathComponent }
+        }
+        let root = home.appendingPathComponent(".codex/sessions", isDirectory: true)
+        for year in sorted(root) {
+            for month in sorted(year) {
+                for day in sorted(month) {
+                    for file in sorted(day) where codexSessionID(fromPath: file.path) == id {
+                        guard let cwd = codexCwd(of: file) else { continue }
+                        codexRollouts[id] = (file, cwd)
+                        return (file, cwd)
+                    }
+                }
+            }
+        }
+        return nil
+    }
+
+    /// The folder from the first line of a rollout file (the session_meta record).
+    static func codexCwd(of rollout: URL) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: rollout) else { return nil }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: 64 * 1024),
+              let line = data.split(separator: UInt8(ascii: "\n"), maxSplits: 1).first,
+              let json = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
+              let payload = json["payload"] as? [String: Any] else { return nil }
+        return payload["cwd"] as? String
+    }
+
+    /// The open Codex thread in `cwd`. The Codex daemon holds a lock file for each open
+    /// thread: ~/.codex/thread-writer-locks/<id>.lock. With more threads in the same
+    /// folder, the one that opened last wins.
+    static func codexOpenThread(cwd: String) -> String? {
+        let dir = home.appendingPathComponent(".codex/thread-writer-locks", isDirectory: true)
+        let locks = (try? FileManager.default.contentsOfDirectory(
+            at: dir, includingPropertiesForKeys: [.creationDateKey])) ?? []
+        func created(_ url: URL) -> Date {
+            (try? url.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
+        }
+        return locks
+            .filter { $0.pathExtension == "lock" }
+            .sorted { created($0) > created($1) }
+            .map { $0.deletingPathExtension().lastPathComponent }
+            .first { UUID(uuidString: $0) != nil && codexRollout($0)?.cwd == cwd }
     }
 
     /// The conversation ID in an Antigravity CLI path:

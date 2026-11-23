@@ -401,6 +401,15 @@ final class SessionStore: ObservableObject, TerminalEventHandler {
         session(for: view)?.clearAttention()
     }
 
+    func terminal(_ view: TerminalView, pathForSidebarItem data: Data) -> URL? {
+        guard let item = try? JSONDecoder().decode(SidebarDragItem.self, from: data) else { return nil }
+        if let root = item.group { return URL(fileURLWithPath: root, isDirectory: true) }
+        guard let s = sessions.first(where: { $0.id == item.tab }) else { return nil }
+        // A shell tab inserts its folder.
+        guard let agent = s.agent else { return URL(fileURLWithPath: s.cwd, isDirectory: true) }
+        return AgentSession.transcript(agent, session: s.agentSession)
+    }
+
     // MARK: Polling (processes, ports, favicons, spinner decay)
 
     private func poll() {
