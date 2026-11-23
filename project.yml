@@ -74,6 +74,7 @@ targets:
       - path: Sources/Shellter/Model/LinkedWindows.swift
       - path: Sources/Shellter/Model/PortClassifier.swift
       - path: Sources/Shellter/Model/Shell.swift
+      - path: Sources/Shellter/Model/AgentText.swift
       - path: Sources/Shellter/Model/Reorder.swift
       - path: Sources/Shellter/Model/IconResolver.swift
       - path: Sources/Shellter/UI/SidebarSettings.swift

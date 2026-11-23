@@ -11,6 +11,9 @@ final class TerminalView: NSView {
     private(set) var surface: ghostty_surface_t?
     weak var eventHandler: TerminalEventHandler?
     var cellSize = NSSize(width: 8, height: 16)
+    /// True while a coding agent runs in the terminal: Copy then cleans up the text
+    /// (see AgentText). Copy Raw Text copies it as it is.
+    var cleansCopiedText: () -> Bool = { false }
     let search = TerminalSearch()
 
     private var markedText = NSMutableAttributedString()
@@ -564,7 +567,43 @@ final class TerminalView: NSView {
 
     // MARK: Menu actions
 
-    @objc func copy(_ sender: Any?) { performBinding("copy_to_clipboard") }
+    @objc func copy(_ sender: Any?) {
+        guard cleansCopiedText(), let text = cleanedSelection() else { return copyRawText(sender) }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    @objc func copyRawText(_ sender: Any?) { performBinding("copy_to_clipboard") }
+
+    private func cleanedSelection() -> String? {
+        guard let surface, ghostty_surface_has_selection(surface) else { return nil }
+        var text = ghostty_text_s()
+        guard ghostty_surface_read_selection(surface, &text) else { return nil }
+        defer { ghostty_surface_free_text(surface, &text) }
+        guard let ptr = text.text, text.text_len > 0 else { return nil }
+        let raw = String(decoding: UnsafeRawBufferPointer(start: ptr, count: Int(text.text_len)), as: UTF8.self)
+        let columns = Int(ghostty_surface_size(surface).columns)
+        // The offset counts cells from the top left of the screen.
+        let first = columns > 0 ? Int(text.offset_start) % columns : 0
+        return AgentText.clean(raw, columns: columns, firstColumn: first)
+    }
+
+    /// The context menu, when the program in the terminal does not take the right click.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = NSMenu()
+        let hasSelection = surface.map { ghostty_surface_has_selection($0) } ?? false
+        if hasSelection {
+            menu.addItem(withTitle: "Copy", action: #selector(copy(_:)), keyEquivalent: "")
+            if cleansCopiedText() {
+                menu.addItem(withTitle: "Copy Raw Text", action: #selector(copyRawText(_:)), keyEquivalent: "")
+            }
+        }
+        menu.addItem(withTitle: "Paste", action: #selector(paste(_:)), keyEquivalent: "")
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Select All", action: #selector(selectAll(_:)), keyEquivalent: "")
+        for item in menu.items { item.target = self }
+        return menu
+    }
     @objc func paste(_ sender: Any?) { performBinding("paste_from_clipboard") }
     @objc override func selectAll(_ sender: Any?) { performBinding("select_all") }
 
