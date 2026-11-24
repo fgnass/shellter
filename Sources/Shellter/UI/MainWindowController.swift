@@ -339,6 +339,62 @@ final class ChromeSplitView: NSSplitView {
 
 /// Keeps the keyboard focus in the terminal: the sidebar never takes it.
 final class ShellterWindow: NSWindow {
+    /// The terminal that gets a mouse drag that started in the title bar.
+    private weak var titlebarDragTarget: TerminalView?
+
+    /// The title bar (with the toolbar of the floating sidebar it is about 50 pt high) lies
+    /// over the top rows of the terminal and would move the window. Clicks and drags there go
+    /// to the terminal, so text in the top rows can be selected. The window still moves by
+    /// the title bar over the sidebar.
+    override func sendEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDown:
+            if let t = terminalUnderTitlebar(event) {
+                // The padding above the first row moves the window, as a title bar does.
+                if t.isWindowDragArea(event.locationInWindow) {
+                    if event.clickCount == 2 { titlebarDoubleClick() } else { performDrag(with: event) }
+                    return
+                }
+                titlebarDragTarget = t
+                isMovable = false
+                if firstResponder !== t { makeFirstResponder(t) }
+                t.mouseDown(with: event)
+                return
+            }
+        case .leftMouseDragged:
+            if let t = titlebarDragTarget { t.mouseDragged(with: event); return }
+        case .leftMouseUp:
+            if let t = titlebarDragTarget {
+                titlebarDragTarget = nil
+                isMovable = true
+                t.mouseUp(with: event)
+                return
+            }
+        default:
+            break
+        }
+        super.sendEvent(event)
+    }
+
+    /// What a double click on the title bar does (System Settings → Desktop & Dock).
+    private func titlebarDoubleClick() {
+        switch UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") {
+        case "Minimize": performMiniaturize(nil)
+        case "None": break
+        default: performZoom(nil)
+        }
+    }
+
+    private func terminalUnderTitlebar(_ event: NSEvent) -> TerminalView? {
+        let p = event.locationInWindow
+        guard p.y >= contentLayoutRect.maxY, let content = contentView,
+              let hit = content.hitTest(content.superview?.convert(p, from: nil) ?? p) else { return nil }
+        // Only where the terminal itself is hit, not the find bar over it.
+        var v: NSView? = hit
+        while let cur = v, !(cur is TerminalView) { v = cur.superview }
+        return v as? TerminalView
+    }
+
     override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
         if let view = responder as? NSView, !(view is TerminalView), !(view is NSTextView),
            !(view is NSTextField),

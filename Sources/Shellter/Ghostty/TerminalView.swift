@@ -131,6 +131,9 @@ final class TerminalView: NSView {
     // MARK: Layout / focus
 
     override var acceptsFirstResponder: Bool { true }
+    /// The top rows lie under the transparent title bar: a drag there selects text and
+    /// must not move the window (a view that is not opaque would move it).
+    override var mouseDownCanMoveWindow: Bool { false }
     override var isFlipped: Bool { false }
 
     override func setFrameSize(_ newSize: NSSize) {
@@ -206,7 +209,30 @@ final class TerminalView: NSView {
         super.updateTrackingAreas()
     }
 
-    override func cursorUpdate(with event: NSEvent) { mouseCursor.set() }
+    override func cursorUpdate(with event: NSEvent) {
+        inWindowDragArea = isWindowDragArea(event.locationInWindow)
+        (inWindowDragArea ? NSCursor.arrow : mouseCursor).set()
+    }
+
+    /// True while the mouse is over the padding above the first row, under the title bar.
+    private var inWindowDragArea = false
+
+    /// The padding above the first row, where it lies under the title bar, moves the window
+    /// (see ShellterWindow). `point` is in window coordinates.
+    func isWindowDragArea(_ point: NSPoint) -> Bool {
+        guard let window, point.y >= window.contentLayoutRect.maxY else { return false }
+        let p = convert(point, from: nil)
+        return bounds.contains(p) && p.y >= bounds.height - topPadding
+    }
+
+    /// The arrow over the drag area, else the cursor that Ghostty asked for.
+    private func updateCursor(_ event: NSEvent) {
+        guard NSEvent.pressedMouseButtons == 0 else { return }
+        let inside = isWindowDragArea(event.locationInWindow)
+        guard inside != inWindowDragArea else { return }
+        inWindowDragArea = inside
+        (inside ? NSCursor.arrow : mouseCursor).set()
+    }
 
     func setMouseShape(_ shape: ghostty_action_mouse_shape_e) {
         let cursor: NSCursor
@@ -229,7 +255,7 @@ final class TerminalView: NSView {
         let apply = { [weak self] in
             guard let self, let window = self.window else { return }
             let p = self.convert(window.mouseLocationOutsideOfEventStream, from: nil)
-            if self.bounds.contains(p) { cursor.set() }
+            if self.bounds.contains(p), !self.inWindowDragArea { cursor.set() }
         }
         if Thread.isMainThread { apply() } else { DispatchQueue.main.async(execute: apply) }
     }
@@ -283,13 +309,20 @@ final class TerminalView: NSView {
         }
     }
 
-    override func mouseMoved(with event: NSEvent) { sendMousePos(event) }
+    override func mouseMoved(with event: NSEvent) {
+        sendMousePos(event)
+        updateCursor(event)
+    }
     override func mouseDragged(with event: NSEvent) { sendMousePos(event) }
     override func rightMouseDragged(with event: NSEvent) { sendMousePos(event) }
     override func otherMouseDragged(with event: NSEvent) { sendMousePos(event) }
-    override func mouseEntered(with event: NSEvent) { sendMousePos(event) }
+    override func mouseEntered(with event: NSEvent) {
+        sendMousePos(event)
+        updateCursor(event)
+    }
 
     override func mouseExited(with event: NSEvent) {
+        inWindowDragArea = false
         guard let surface, NSEvent.pressedMouseButtons == 0 else { return }
         ghostty_surface_mouse_pos(surface, -1, -1, Self.mods(event.modifierFlags))
     }
@@ -595,6 +628,19 @@ final class TerminalView: NSView {
             timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window?.windowNumber ?? 0,
             context: nil, characters: "c", charactersIgnoringModifiers: "c", isARepeat: false, keyCode: 8)
         if let event { keyDown(with: event) }
+    }
+
+    /// The empty space in points above the first row. Ghostty does not report its padding,
+    /// so this repeats its math for `window-padding-balance = true`: half of the space
+    /// below the grid, at most half of the horizontal padding plus half a cell. The
+    /// horizontal padding is assumed to be Shellter's default (see defaults.config).
+    var topPadding: CGFloat {
+        guard let surface, let scale = window?.backingScaleFactor else { return 0 }
+        let size = ghostty_surface_size(surface)
+        let space = CGFloat(size.height_px) - CGFloat(size.rows) * CGFloat(size.cell_height_px)
+        let paddingX = (14 * scale).rounded(.down)
+        let cap = ((2 * paddingX + CGFloat(size.cell_width_px)) / 2).rounded(.down)
+        return max(0, min((space / 2).rounded(.down), cap)) / scale
     }
 
     /// The empty space in points below the last row: the part of the view that does not
