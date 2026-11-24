@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.0](https://github.com/fgnass/shellter/compare/v0.2.0...v0.3.0) (2026-11-24)
+
+
+### Features
+
+* drag an agent tab into a terminal to insert the path of its conversation (a shell tab or project inserts its folder); folders from the Finder can be dropped anywhere on the sidebar again and highlight it; find Codex sessions that the Codex daemon writes ([4427f18](https://github.com/fgnass/shellter/commit/4427f180ae925a3ba97b21723908b4b573d7a992))
+* open a project in the editor of choice from the context menu; editor windows of the VS Code family belong to the project of their folder, also with an unsaved file ([c52ca61](https://github.com/fgnass/shellter/commit/c52ca61bceab3d29f2796fefe71f6c2ad588213d))
+* reopen recently closed projects from the sidebar or with ⇧⌘T, with their tabs and agent sessions; Close Project (⌥⌘W) closes all tabs of a project ([82e22d6](https://github.com/fgnass/shellter/commit/82e22d661c63af91f1aae89127b93a601eadf53b))
+
+
+### Bug Fixes
+
+* ⌘C without a terminal selection goes to the program, so Codex copies its own mouse selection ([d0788fe](https://github.com/fgnass/shellter/commit/d0788fe028a51c39d358c3041c6d2bbdd94ce832))
+* text in the top rows under the title bar can be selected; the padding above the first row moves the window and shows the arrow cursor ([9397039](https://github.com/fgnass/shellter/commit/9397039cb3d5fa60501831fcaa84379c3a7c5e47))
+
 ## [0.2.0](https://github.com/fgnass/shellter/compare/v0.1.0...v0.2.0) (2026-11-23)
 
 
